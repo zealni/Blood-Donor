@@ -1,0 +1,283 @@
+"use client";
+
+import { useState, Suspense } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Heart, User, Mail, Lock, Eye, EyeOff, ArrowRight, Calendar } from "lucide-react";
+
+function RegisterForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get("redirect") || "/dashboard/donor";
+  
+  // Fields
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [bloodType, setBloodType] = useState<"A" | "B" | "AB" | "O" | "">("");
+  const [rhesus, setRhesus] = useState<"+" | "-" | "">("");
+  const [lastDonation, setLastDonation] = useState("");
+  
+  // UI states
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Validations
+    if (!fullName.trim()) {
+      setError("Nama Lengkap tidak boleh kosong.");
+      return;
+    }
+    if (!email) {
+      setError("Email tidak boleh kosong.");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setError("Format email tidak valid.");
+      return;
+    }
+    if (!password) {
+      setError("Password tidak boleh kosong.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password minimal 6 karakter.");
+      return;
+    }
+    if (!bloodType) {
+      setError("Silakan pilih golongan darah.");
+      return;
+    }
+    if (!rhesus) {
+      setError("Silakan pilih rhesus.");
+      return;
+    }
+
+    setLoading(true);
+
+    // Simulate Network Request
+    setTimeout(() => {
+      setLoading(false);
+      
+      const newUser = {
+        email,
+        fullName,
+        bloodType,
+        rhesus,
+        lastDonation,
+        isLoggedIn: true,
+      };
+
+      // Store in register list for simulated database lookup
+      const storedUsers = localStorage.getItem("registered_users");
+      let usersList = [];
+      if (storedUsers) {
+        try {
+          usersList = JSON.parse(storedUsers);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      // Check if user already exists
+      const userExists = usersList.some((u: any) => u.email.toLowerCase() === email.toLowerCase());
+      if (userExists) {
+        setError("Email sudah terdaftar. Silakan gunakan email lain atau masuk.");
+        return;
+      }
+      
+      usersList.push(newUser);
+      localStorage.setItem("registered_users", JSON.stringify(usersList));
+
+      // Save active session
+      localStorage.setItem("user_session", JSON.stringify(newUser));
+
+      // Redirect to target path
+      router.push(redirectPath);
+      router.refresh();
+    }, 1200);
+  };
+
+  return (
+    <div className="w-full max-w-lg z-10">
+      {/* Brand Logo */}
+      <div className="flex flex-col items-center mb-8">
+        <Link href="/" className="flex items-center gap-2 mb-2">
+          <div className="relative">
+            <Heart className="text-primary w-8 h-8 fill-primary" />
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+          </div>
+          <span className="font-extrabold text-2xl tracking-tight text-slate-900 dark:text-white">BloodConnect</span>
+        </Link>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">Daftar sekali untuk menjadi pendonor sekaligus pemohon donor</p>
+      </div>
+
+      {/* Register Card */}
+      <div className="bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-8 shadow-xl">
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-2xl text-red-600 dark:text-red-400 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Full Name */}
+          <div>
+            <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Nama Lengkap</label>
+            <div className="relative">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Nama lengkap sesuai KTP"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Email</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimal 6 karakter"
+                className="w-full pl-12 pr-12 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Medical Info Fields: Blood Type and Rhesus */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Blood Type Selector */}
+            <div>
+              <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Gol. Darah</label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {(["A", "B", "AB", "O"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setBloodType(type)}
+                    className={`py-2 rounded-xl border text-sm font-extrabold transition-all ${
+                      bloodType === type
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-700"
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Rhesus Selector */}
+            <div>
+              <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Rhesus</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(["+", "-"] as const).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setRhesus(type)}
+                    className={`py-2 rounded-xl border text-sm font-extrabold transition-all ${
+                      rhesus === type
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-700"
+                    }`}
+                  >
+                    {type === "+" ? "Pos (+)" : "Neg (-)"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Last Donation Date */}
+          <div>
+            <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Tanggal Donor Terakhir (Opsional)</label>
+            <div className="relative">
+              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+              <input
+                type="date"
+                value={lastDonation}
+                onChange={(e) => setLastDonation(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">Kosongkan jika Anda belum pernah mendonorkan darah.</p>
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-bold hover:bg-primary/90 transition-all hover:shadow-[0_0_30px_rgba(225,29,72,0.2)] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center gap-2 mt-8 text-sm"
+          >
+            {loading ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                Daftar & Masuk
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Footer inside Card */}
+        <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-center text-sm text-slate-500 dark:text-slate-400">
+          Sudah punya akun?{" "}
+          <Link href={`/login${redirectPath ? `?redirect=${redirectPath}` : ""}`} className="text-primary hover:underline font-bold">
+            Masuk Disini
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <div className="min-h-screen flex flex-col justify-center items-center bg-slate-50 dark:bg-slate-950 px-6 py-12 relative overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+      <Suspense fallback={<div className="text-slate-500">Loading...</div>}>
+        <RegisterForm />
+      </Suspense>
+    </div>
+  );
+}

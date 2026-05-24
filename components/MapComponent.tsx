@@ -1,0 +1,314 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { MapPin, Navigation, Settings, Eye, Filter, Crosshair } from 'lucide-react';
+
+// Custom icons using HTML to keep the pulsing effect
+const createCustomIcon = (type: 'seeker' | 'donor' | 'user') => {
+  let color = 'ef4444'; // Red for seeker (Tailwind red-500)
+  if (type === 'donor') color = '10b981'; // Green for donor (Tailwind emerald-500)
+  if (type === 'user') color = '3b82f6'; // Blue for active user location (Tailwind blue-500)
+  
+  const size = type === 'user' ? 28 : 24;
+  const innerSize = type === 'user' ? 16 : 14;
+  const margin = type === 'user' ? 6 : 5;
+  
+  return L.divIcon({
+    className: 'custom-leaflet-icon',
+    html: `
+      <div style="position: relative; width: ${size}px; height: ${size}px;">
+        <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.75; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: #${color};"></span>
+        <span style="position: relative; display: flex; align-items: center; justify-content: center; width: ${innerSize}px; height: ${innerSize}px; margin: ${margin}px; border-radius: 50%; background-color: #${color}; box-shadow: 0 0 10px rgba(0,0,0,0.5); border: 2px solid white;"></span>
+      </div>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+};
+
+const seekerIcon = createCustomIcon('seeker');
+const donorIcon = createCustomIcon('donor');
+const userIcon = createCustomIcon('user');
+
+// Haversine formula to calculate distance in km
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Next.js leaflet dynamic view changer
+function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo(center, zoom, { duration: 1.5 });
+  }, [center, zoom, map]);
+  return null;
+}
+
+// Static mock signals (Centered around Yogyakarta)
+const staticSignals = [
+  { id: 1, type: "seeker", position: [-7.768, 110.373], bloodType: "A+", urgency: "Kritis", location: "RSUP Dr. Sardjito" },
+  { id: 2, type: "donor", position: [-7.772, 110.368], bloodType: "O+", urgency: "Sedia", location: "Sinduadi" },
+  { id: 3, type: "seeker", position: [-7.783, 110.378], bloodType: "AB-", urgency: "Tinggi", location: "RS Panti Rapih" },
+  { id: 4, type: "donor", position: [-7.787, 110.383], bloodType: "B+", urgency: "Sedia", location: "Gondokusuman" },
+  { id: 5, type: "seeker", position: [-7.785, 110.370], bloodType: "O-", urgency: "Sedang", location: "RS Bethesda" },
+  { id: 6, type: "donor", position: [-7.782, 110.365], bloodType: "A-", urgency: "Sedia", location: "Jetis" },
+  { id: 8, type: "seeker", position: [-7.758, 110.404], bloodType: "O+", urgency: "Kritis", location: "RS JIH" },
+  { id: 9, type: "donor", position: [-7.760, 110.410], bloodType: "A+", urgency: "Sedia", location: "Condongcatur" },
+];
+
+export default function MapComponent() {
+  const [center, setCenter] = useState<[number, number]>([-7.775, 110.380]);
+  const [zoom, setZoom] = useState(13);
+  const [hasUserLocation, setHasUserLocation] = useState(false);
+  
+  // Filtering states
+  const [filterType, setFilterType] = useState<'all' | 'seeker' | 'donor'>('all');
+  const [radius, setRadius] = useState<number>(0); // 0 means show all
+  
+  // Dynamic signals list (populated locally if user is far from Jogja)
+  const [dynamicSignals, setDynamicSignals] = useState<any[]>([]);
+
+  // Geolocation Handler
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Browser Anda tidak mendukung layanan geolokasi.");
+      return;
+    }
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setCenter([latitude, longitude]);
+        setHasUserLocation(true);
+        setZoom(14);
+      },
+      (error) => {
+        alert("Gagal mendeteksi lokasi: " + error.message);
+      },
+      { enableHighAccuracy: true }
+    );
+  };
+
+  // Generate dynamic signals if user is far from Jogja
+  useEffect(() => {
+    if (hasUserLocation) {
+      const [lat, lng] = center;
+      const distanceToYogya = getDistance(lat, lng, -7.775, 110.380);
+      
+      // If user is more than 50km away from Yogyakarta, generate mock signals near them
+      if (distanceToYogya > 50) {
+        const localSignals = [
+          { id: 101, type: "seeker", position: [lat + 0.005, lng - 0.003], bloodType: "O-", urgency: "Kritis", location: "Rumah Sakit Daerah Terdekat" },
+          { id: 102, type: "donor", position: [lat - 0.004, lng + 0.005], bloodType: "A+", urgency: "Sedia", location: "Pendonor Siaga (500m)" },
+          { id: 103, type: "seeker", position: [lat + 0.008, lng + 0.002], bloodType: "AB+", urgency: "Tinggi", location: "Puskesmas Terdekat" },
+          { id: 104, type: "donor", position: [lat - 0.006, lng - 0.004], bloodType: "B-", urgency: "Sedia", location: "Pendonor Siaga (1.2km)" },
+        ];
+        setDynamicSignals(localSignals);
+      } else {
+        setDynamicSignals([]);
+      }
+    } else {
+      setDynamicSignals([]);
+    }
+  }, [center, hasUserLocation]);
+
+  // Combine static and dynamic signals
+  const allSignals = [...staticSignals, ...dynamicSignals];
+
+  // Filtering Logic
+  const filteredSignals = allSignals.filter((signal) => {
+    // 1. Filter by Signal Type
+    if (filterType !== 'all' && signal.type !== filterType) {
+      return false;
+    }
+    
+    // 2. Filter by Radius
+    if (radius > 0) {
+      const distance = getDistance(center[0], center[1], signal.position[0], signal.position[1]);
+      if (distance > radius) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
+  return (
+    <div className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0">
+      
+      {/* Geolocation Button - Floating above Leaflet */}
+      <button 
+        onClick={handleDetectLocation}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClickCapture={(e) => {
+          e.stopPropagation();
+          handleDetectLocation();
+        }}
+        className="absolute bottom-6 left-6 z-[1000] p-3.5 bg-primary text-white rounded-2xl hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2 font-bold text-xs"
+        title="Deteksi Lokasi Saya"
+      >
+        <Crosshair className="w-4 h-4 animate-pulse" />
+        Deteksi Lokasi Saya
+      </button>
+
+      {/* Floating Glassmorphic Filter Panel */}
+      <div 
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-4 right-4 z-[1000] w-64 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 p-4 rounded-2xl shadow-xl space-y-4"
+      >
+        <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2">
+          <Filter className="w-4 h-4 text-primary" />
+          <span className="text-xs font-bold uppercase tracking-wider">Filter Peta Interaktif</span>
+        </div>
+
+        {/* Signal Type Filter */}
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase">Tipe Sinyal</label>
+          <div className="grid grid-cols-3 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-1 rounded-xl">
+            {(['all', 'seeker', 'donor'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setFilterType(t)}
+                className={`py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                  filterType === t 
+                    ? 'bg-white dark:bg-slate-800 text-primary shadow-sm' 
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                {t === 'all' ? 'Semua' : t === 'seeker' ? 'Pemohon' : 'Donor'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Radius Filter */}
+        <div className="space-y-1.5">
+          <div className="flex justify-between items-center">
+            <label className="text-[10px] font-bold text-slate-400 uppercase">Radius Lokasi</label>
+            <span className="text-[10px] font-extrabold text-primary">
+              {radius === 0 ? 'Semua' : `${radius} km`}
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="10"
+            step="1"
+            value={radius}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              // Snap to specific increments: 0, 1, 3, 5, 10
+              if (val > 0 && val <= 2) setRadius(1);
+              else if (val > 2 && val <= 4) setRadius(3);
+              else if (val > 4 && val <= 7) setRadius(5);
+              else if (val > 7) setRadius(10);
+              else setRadius(0);
+            }}
+            className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+          />
+          <div className="flex justify-between text-[8px] text-slate-400 font-bold px-0.5">
+            <span>Semua</span>
+            <span>1km</span>
+            <span>3km</span>
+            <span>5km</span>
+            <span>10km</span>
+          </div>
+        </div>
+      </div>
+
+      <MapContainer 
+        center={center} 
+        zoom={zoom} 
+        style={{ width: '100%', height: '100%' }}
+        className="z-0"
+        zoomControl={false}
+      >
+        <ChangeView center={center} zoom={zoom} />
+        
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+        />
+        
+        {/* Render Radius visual circle around center/user coordinates */}
+        {radius > 0 && (
+          <Circle
+            center={center}
+            radius={radius * 1000} // Radius in meters
+            pathOptions={{
+              color: '#3b82f6',
+              fillColor: '#3b82f6',
+              fillOpacity: 0.1,
+              weight: 1.5,
+              dashArray: '5, 5'
+            }}
+          />
+        )}
+
+        {/* User's active location pulsing marker */}
+        {hasUserLocation && (
+          <Marker position={center} icon={userIcon}>
+            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+              <div className="font-sans px-1 py-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-1">
+                  🔵 Lokasi Anda
+                </div>
+                <div className="font-black text-sm text-slate-900">Pusat Jangkauan Filter</div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
+        
+        {/* Render filtered markers */}
+        {filteredSignals.map((signal) => (
+          <Marker 
+            key={signal.id} 
+            position={signal.position as [number, number]} 
+            icon={signal.type === 'seeker' ? seekerIcon : donorIcon}
+          >
+            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+              <div className="font-sans px-1 py-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  {signal.type === "seeker" ? "🔴 Pemohon" : "🟢 Pendonor"}
+                </div>
+                <div className="font-black text-xl text-slate-900">{signal.bloodType}</div>
+                <div className="font-semibold text-sm text-slate-700 mt-1">{signal.location}</div>
+                <div className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold mt-2 ${
+                  signal.urgency === 'Kritis' ? 'bg-red-100 text-red-700' : 
+                  signal.urgency === 'Tinggi' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {signal.type === "seeker" ? `Urgensi: ${signal.urgency}` : 'Siaga Pendonor'}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+      
+      {/* Legend Overlay - absolute bottom right */}
+      <div className="absolute bottom-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-2xl flex flex-col gap-3 text-xs font-semibold shadow-xl">
+        <div className="flex items-center gap-3">
+          <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] border-2 border-white" />
+          <span className="text-slate-700 dark:text-slate-200">Darurat (Butuh)</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)] border-2 border-white" />
+          <span className="text-slate-700 dark:text-slate-200">Siap Donor</span>
+        </div>
+      </div>
+    </div>
+  );
+}
