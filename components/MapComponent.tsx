@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Navigation, Settings, Eye, Filter, Crosshair } from 'lucide-react';
+import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check } from 'lucide-react';
 
 // Custom icons using HTML to keep the pulsing effect
-const createCustomIcon = (type: 'seeker' | 'donor' | 'user') => {
+const createCustomIcon = (type: 'seeker' | 'donor' | 'user' | 'selected') => {
   let color = 'ef4444'; // Red for seeker (Tailwind red-500)
   if (type === 'donor') color = '10b981'; // Green for donor (Tailwind emerald-500)
   if (type === 'user') color = '3b82f6'; // Blue for active user location (Tailwind blue-500)
+  if (type === 'selected') color = 'f59e0b'; // Amber for selected hospital pin
   
-  const size = type === 'user' ? 28 : 24;
-  const innerSize = type === 'user' ? 16 : 14;
-  const margin = type === 'user' ? 6 : 5;
+  const size = type === 'user' || type === 'selected' ? 28 : 24;
+  const innerSize = type === 'user' || type === 'selected' ? 16 : 14;
+  const margin = type === 'user' || type === 'selected' ? 6 : 5;
   
   return L.divIcon({
     className: 'custom-leaflet-icon',
@@ -33,6 +34,7 @@ const createCustomIcon = (type: 'seeker' | 'donor' | 'user') => {
 const seekerIcon = createCustomIcon('seeker');
 const donorIcon = createCustomIcon('donor');
 const userIcon = createCustomIcon('user');
+const selectedIcon = createCustomIcon('selected');
 
 // Haversine formula to calculate distance in km
 const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -56,6 +58,18 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
   return null;
 }
 
+// Leaflet click handler component for interactive location pinning
+function MapEventsHandler({ onMapClick }: { onMapClick?: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      if (onMapClick) {
+        onMapClick(e.latlng.lat, e.latlng.lng);
+      }
+    },
+  });
+  return null;
+}
+
 // Static mock signals (Centered around Yogyakarta)
 const staticSignals = [
   { id: 1, type: "seeker", position: [-7.768, 110.373], bloodType: "A+", urgency: "Kritis", location: "RSUP Dr. Sardjito" },
@@ -68,17 +82,43 @@ const staticSignals = [
   { id: 9, type: "donor", position: [-7.760, 110.410], bloodType: "A+", urgency: "Sedia", location: "Condongcatur" },
 ];
 
-export default function MapComponent() {
+interface MapComponentProps {
+  preview?: boolean; // If true, hides controls/filter panel (for landing page preview)
+  onMapClick?: (lat: number, lng: number) => void; // Click handler to select coordinates
+  selectedHospitalPosition?: [number, number] | null; // Currently pinned position for seekers
+  selectedHospitalName?: string;
+  highlightedSignalId?: number | null; // ID of the signal to focus on
+}
+
+export default function MapComponent({
+  preview = false,
+  onMapClick,
+  selectedHospitalPosition,
+  selectedHospitalName = "Titik Rumah Sakit Pilihan",
+  highlightedSignalId
+}: MapComponentProps) {
   const [center, setCenter] = useState<[number, number]>([-7.775, 110.380]);
   const [zoom, setZoom] = useState(13);
   const [hasUserLocation, setHasUserLocation] = useState(false);
   
   // Filtering states
   const [filterType, setFilterType] = useState<'all' | 'seeker' | 'donor'>('all');
+  const [filterBlood, setFilterBlood] = useState<string>('all');
+  const [filterRhesus, setFilterRhesus] = useState<string>('all');
+  const [filterUrgency, setFilterUrgency] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [radius, setRadius] = useState<number>(0); // 0 means show all
   
   // Dynamic signals list (populated locally if user is far from Jogja)
   const [dynamicSignals, setDynamicSignals] = useState<any[]>([]);
+
+  // DOM ref callback helper to prevent Leaflet from stealing clicks/scrolls
+  const preventLeafletPropagation = (node: HTMLElement | null) => {
+    if (node) {
+      L.DomEvent.disableClickPropagation(node);
+      L.DomEvent.disableScrollPropagation(node);
+    }
+  };
 
   // Geolocation Handler
   const handleDetectLocation = () => {
@@ -124,6 +164,18 @@ export default function MapComponent() {
     }
   }, [center, hasUserLocation]);
 
+  // Handle highlighted signal change from external prop
+  useEffect(() => {
+    if (highlightedSignalId) {
+      const allSignals = [...staticSignals, ...dynamicSignals];
+      const match = allSignals.find(s => s.id === highlightedSignalId);
+      if (match) {
+        setCenter(match.position as [number, number]);
+        setZoom(15);
+      }
+    }
+  }, [highlightedSignalId, dynamicSignals]);
+
   // Combine static and dynamic signals
   const allSignals = [...staticSignals, ...dynamicSignals];
 
@@ -134,100 +186,231 @@ export default function MapComponent() {
       return false;
     }
     
-    // 2. Filter by Radius
+    // 2. Filter by Blood Type letter (A, B, AB, O)
+    if (filterBlood !== 'all') {
+      const letter = signal.bloodType.replace(/[+-]/g, '');
+      if (letter !== filterBlood) return false;
+    }
+
+    // 3. Filter by Rhesus
+    if (filterRhesus !== 'all') {
+      const rh = signal.bloodType.includes('+') ? '+' : '-';
+      if (rh !== filterRhesus) return false;
+    }
+
+    // 4. Filter by Urgency
+    if (filterUrgency !== 'all') {
+      if (signal.type === 'seeker' && signal.urgency !== filterUrgency) {
+        return false;
+      }
+      if (signal.type === 'donor') {
+        // Donors don't usually have "Kritis" urgency, they are either "Sedia" or equivalent
+        return false;
+      }
+    }
+    
+    // 5. Filter by Radius
     if (radius > 0) {
       const distance = getDistance(center[0], center[1], signal.position[0], signal.position[1]);
       if (distance > radius) {
         return false;
       }
     }
+
+    // 6. Filter by Search Query
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      const locMatch = signal.location.toLowerCase().includes(q);
+      const bloodMatch = signal.bloodType.toLowerCase().includes(q);
+      if (!locMatch && !bloodMatch) return false;
+    }
     
     return true;
   });
 
+  const handleResetFilters = () => {
+    setFilterType('all');
+    setFilterBlood('all');
+    setFilterRhesus('all');
+    setFilterUrgency('all');
+    setRadius(0);
+    setSearchQuery('');
+  };
+
   return (
     <div className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0">
       
-      {/* Geolocation Button - Floating above Leaflet */}
-      <button 
-        onClick={handleDetectLocation}
-        onMouseDown={(e) => e.stopPropagation()}
-        onClickCapture={(e) => {
-          e.stopPropagation();
-          handleDetectLocation();
-        }}
-        className="absolute bottom-6 left-6 z-[1000] p-3.5 bg-primary text-white rounded-2xl hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2 font-bold text-xs"
-        title="Deteksi Lokasi Saya"
-      >
-        <Crosshair className="w-4 h-4 animate-pulse" />
-        Deteksi Lokasi Saya
-      </button>
+      {!preview && (
+        <>
+          {/* Geolocation Button - ref prevents Leaflet drag/click capture */}
+          <button 
+            ref={preventLeafletPropagation}
+            onClick={handleDetectLocation}
+            className="absolute bottom-6 left-6 z-[1000] p-3.5 bg-primary text-white rounded-2xl hover:bg-primary/95 transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center gap-2 font-bold text-xs"
+            title="Deteksi Lokasi Saya"
+          >
+            <Crosshair className="w-4 h-4 animate-pulse" />
+            Deteksi Lokasi Saya
+          </button>
 
-      {/* Floating Glassmorphic Filter Panel */}
-      <div 
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-        className="absolute top-4 right-4 z-[1000] w-64 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 p-4 rounded-2xl shadow-xl space-y-4"
-      >
-        <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2">
-          <Filter className="w-4 h-4 text-primary" />
-          <span className="text-xs font-bold uppercase tracking-wider">Filter Peta Interaktif</span>
-        </div>
-
-        {/* Signal Type Filter */}
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase">Tipe Sinyal</label>
-          <div className="grid grid-cols-3 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-1 rounded-xl">
-            {(['all', 'seeker', 'donor'] as const).map((t) => (
+          {/* Floating Glassmorphic Filter Panel */}
+          <div 
+            ref={preventLeafletPropagation}
+            className="absolute top-4 right-4 z-[1000] w-72 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 p-4 rounded-3xl shadow-xl space-y-4 max-h-[85%] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                <Filter className="w-4 h-4 text-primary" />
+                <span className="text-xs font-black uppercase tracking-wider">Filter Peta</span>
+              </div>
               <button
-                key={t}
-                onClick={() => setFilterType(t)}
-                className={`py-1.5 rounded-lg text-[10px] font-bold transition-all ${
-                  filterType === t 
-                    ? 'bg-white dark:bg-slate-800 text-primary shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
+                onClick={handleResetFilters}
+                className="text-[10px] text-slate-400 hover:text-primary font-bold flex items-center gap-1 transition-colors"
+                title="Reset Filter"
               >
-                {t === 'all' ? 'Semua' : t === 'seeker' ? 'Pemohon' : 'Donor'}
+                <RotateCcw className="w-3 h-3" />
+                Reset
               </button>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* Radius Filter */}
-        <div className="space-y-1.5">
-          <div className="flex justify-between items-center">
-            <label className="text-[10px] font-bold text-slate-400 uppercase">Radius Lokasi</label>
-            <span className="text-[10px] font-extrabold text-primary">
-              {radius === 0 ? 'Semua' : `${radius} km`}
-            </span>
+            {/* Search Input */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cari Rumah Sakit / Lokasi</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Ketik lokasi / golongan..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Signal Type Filter */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tipe Sinyal</label>
+              <div className="grid grid-cols-3 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
+                {(['all', 'seeker', 'donor'] as const).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setFilterType(t)}
+                    className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
+                      filterType === t 
+                        ? 'bg-white dark:bg-slate-800 text-primary shadow-sm' 
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {t === 'all' ? 'Semua' : t === 'seeker' ? 'Butuh' : 'Donor'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Blood Type Grid Filter */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Golongan Darah</label>
+              <div className="grid grid-cols-5 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
+                {['all', 'A', 'B', 'AB', 'O'].map((b) => (
+                  <button
+                    key={b}
+                    onClick={() => setFilterBlood(b)}
+                    className={`py-1 rounded-lg text-[9px] font-extrabold transition-all uppercase ${
+                      filterBlood === b
+                        ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {b}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Rhesus Filter */}
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Rhesus</label>
+              <div className="grid grid-cols-3 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
+                {['all', '+', '-'].map((rh) => (
+                  <button
+                    key={rh}
+                    onClick={() => setFilterRhesus(rh)}
+                    className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
+                      filterRhesus === rh
+                        ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {rh === 'all' ? 'Semua' : rh === '+' ? 'Positif (+)' : 'Negatif (-)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Urgency Filter */}
+            {filterType !== 'donor' && (
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Urgensi Pemohon</label>
+                <div className="grid grid-cols-4 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
+                  {['all', 'Kritis', 'Tinggi', 'Sedang'].map((u) => (
+                    <button
+                      key={u}
+                      onClick={() => setFilterUrgency(u)}
+                      className={`py-1 rounded-lg text-[8px] font-extrabold transition-all ${
+                        filterUrgency === u
+                          ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {u === 'all' ? 'Semua' : u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Radius Filter */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center">
+                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Radius Lokasi</label>
+                <span className="text-[9px] font-black text-primary">
+                  {radius === 0 ? 'Semua' : `${radius} km`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                step="1"
+                value={radius}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  if (val > 0 && val <= 2) setRadius(1);
+                  else if (val > 2 && val <= 4) setRadius(3);
+                  else if (val > 4 && val <= 7) setRadius(5);
+                  else if (val > 7) setRadius(10);
+                  else setRadius(0);
+                }}
+                className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
+              />
+              <div className="flex justify-between text-[7px] text-slate-400 font-bold px-0.5">
+                <span>Semua</span>
+                <span>1km</span>
+                <span>3km</span>
+                <span>5km</span>
+                <span>10km</span>
+              </div>
+            </div>
+
+            {/* Filter Results Count Indicator */}
+            <div className="text-[9px] font-extrabold text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
+              <span>Cocok:</span>
+              <span className="text-primary">{filteredSignals.length} dari {allSignals.length} Sinyal</span>
+            </div>
           </div>
-          <input
-            type="range"
-            min="0"
-            max="10"
-            step="1"
-            value={radius}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              // Snap to specific increments: 0, 1, 3, 5, 10
-              if (val > 0 && val <= 2) setRadius(1);
-              else if (val > 2 && val <= 4) setRadius(3);
-              else if (val > 4 && val <= 7) setRadius(5);
-              else if (val > 7) setRadius(10);
-              else setRadius(0);
-            }}
-            className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
-          />
-          <div className="flex justify-between text-[8px] text-slate-400 font-bold px-0.5">
-            <span>Semua</span>
-            <span>1km</span>
-            <span>3km</span>
-            <span>5km</span>
-            <span>10km</span>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       <MapContainer 
         center={center} 
@@ -235,8 +418,16 @@ export default function MapComponent() {
         style={{ width: '100%', height: '100%' }}
         className="z-0"
         zoomControl={false}
+        dragging={!preview}
+        scrollWheelZoom={!preview}
+        doubleClickZoom={!preview}
       >
         <ChangeView center={center} zoom={zoom} />
+        
+        {/* Click events handler for positioning hospital pin */}
+        {!preview && onMapClick && (
+          <MapEventsHandler onMapClick={onMapClick} />
+        )}
         
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -244,14 +435,14 @@ export default function MapComponent() {
         />
         
         {/* Render Radius visual circle around center/user coordinates */}
-        {radius > 0 && (
+        {!preview && radius > 0 && (
           <Circle
             center={center}
             radius={radius * 1000} // Radius in meters
             pathOptions={{
               color: '#3b82f6',
               fillColor: '#3b82f6',
-              fillOpacity: 0.1,
+              fillOpacity: 0.08,
               weight: 1.5,
               dashArray: '5, 5'
             }}
@@ -259,7 +450,7 @@ export default function MapComponent() {
         )}
 
         {/* User's active location pulsing marker */}
-        {hasUserLocation && (
+        {!preview && hasUserLocation && (
           <Marker position={center} icon={userIcon}>
             <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
               <div className="font-sans px-1 py-1">
@@ -271,9 +462,27 @@ export default function MapComponent() {
             </Popup>
           </Marker>
         )}
+
+        {/* DRAG-AND-DROP SELECTED HOSPITAL MARKER */}
+        {!preview && selectedHospitalPosition && (
+          <Marker position={selectedHospitalPosition} icon={selectedIcon}>
+            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+              <div className="font-sans px-1 py-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">
+                  📍 Lokasi Rumah Sakit Pilihan
+                </div>
+                <div className="font-black text-sm text-slate-900">{selectedHospitalName || "Koordinat Terpilih"}</div>
+                <div className="text-[9px] text-slate-400 mt-1 font-semibold">
+                  Lat: {selectedHospitalPosition[0].toFixed(5)}, Lng: {selectedHospitalPosition[1].toFixed(5)}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        )}
         
         {/* Render filtered markers */}
-        {filteredSignals.map((signal) => (
+        {/* If in preview mode, show all signals (no filters applied) */}
+        {(preview ? allSignals : filteredSignals).map((signal) => (
           <Marker 
             key={signal.id} 
             position={signal.position as [number, number]} 
@@ -298,17 +507,28 @@ export default function MapComponent() {
         ))}
       </MapContainer>
       
-      {/* Legend Overlay - absolute bottom right */}
-      <div className="absolute bottom-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-2xl flex flex-col gap-3 text-xs font-semibold shadow-xl">
-        <div className="flex items-center gap-3">
-          <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] border-2 border-white" />
-          <span className="text-slate-700 dark:text-slate-200">Darurat (Butuh)</span>
+      {!preview && (
+        /* Legend Overlay - absolute bottom right - ref stops events propagation */
+        <div 
+          ref={preventLeafletPropagation}
+          className="absolute bottom-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl"
+        >
+          <div className="flex items-center gap-3">
+            <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] border-2 border-white" />
+            <span className="text-slate-700 dark:text-slate-200">Darurat (Butuh)</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)] border-2 border-white" />
+            <span className="text-slate-700 dark:text-slate-200">Siap Donor</span>
+          </div>
+          {selectedHospitalPosition && (
+            <div className="flex items-center gap-3">
+              <span className="w-3.5 h-3.5 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)] border-2 border-white" />
+              <span className="text-slate-700 dark:text-slate-200">Lokasi RS Anda</span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)] border-2 border-white" />
-          <span className="text-slate-700 dark:text-slate-200">Siap Donor</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

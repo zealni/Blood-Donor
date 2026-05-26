@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, Activity, ShieldCheck, MapPin, ArrowRight, User, LogOut } from "lucide-react";
 import LiveSignalMap from "@/components/LiveSignalMap";
+import ActiveRequests from "@/components/ActiveRequests";
+import HowItWorks from "@/components/HowItWorks";
+import BloodMatrix from "@/components/BloodMatrix";
+import ImpactCalculator from "@/components/ImpactCalculator";
+import FaqSection from "@/components/FaqSection";
+import Footer from "@/components/Footer";
 
 interface UserSession {
   email: string;
@@ -145,32 +151,23 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Features Section */}
-      <section className="w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-24 z-10 mt-auto">
-        <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-12">
-          <div className="flex flex-col items-start">
-            <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950 flex items-center justify-center mb-6 text-primary border border-rose-200 dark:border-rose-900">
-              <MapPin className="w-7 h-7" />
-            </div>
-            <h3 className="text-xl font-bold mb-3">Geolokasi Pintar</h3>
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">Algoritma kami mencari pendonor dengan jarak terdekat dari rumah sakit secara otomatis, menghemat waktu emas pasien.</p>
-          </div>
-          <div className="flex flex-col items-start">
-            <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center mb-6 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
-              <Activity className="w-7 h-7" />
-            </div>
-            <h3 className="text-xl font-bold mb-3">Sinyal Instan</h3>
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">Notifikasi *push* seketika kepada pendonor potensial saat sinyal darurat dipancarkan dari pemohon.</p>
-          </div>
-          <div className="flex flex-col items-start">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mb-6 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900">
-              <ShieldCheck className="w-7 h-7" />
-            </div>
-            <h3 className="text-xl font-bold mb-3">Privasi 100%</h3>
-            <p className="text-slate-600 dark:text-slate-400 leading-relaxed">Kami melindungi identitas Anda. Nomor kontak hanya dibagikan ketika Anda secara sukarela menerima permintaan donor.</p>
-          </div>
-        </div>
-      </section>
+      {/* Sinyal Darurat Aktif Terkini */}
+      <ActiveRequests onCTA={handleCTA} />
+
+      {/* Cara Kerja BloodConnect */}
+      <HowItWorks />
+
+      {/* Matriks Kecocokan Golongan Darah */}
+      <BloodMatrix />
+
+      {/* Kalkulator Dampak Donor */}
+      <ImpactCalculator />
+
+      {/* FAQ Section */}
+      <FaqSection />
+
+      {/* Footer Lengkap */}
+      <Footer />
     </div>
   );
 }

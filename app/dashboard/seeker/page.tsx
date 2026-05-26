@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, Send, MapPin, Activity, AlertCircle, Heart, User, LogOut } from "lucide-react";
+import { ArrowLeft, Send, MapPin, Activity, AlertCircle, Heart, User, LogOut, Loader2, Check } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+// Dynamic import of MapComponent to prevent SSR issues with Leaflet
+const MapComponent = dynamic(() => import("@/components/MapComponent"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-slate-100 dark:bg-slate-950 flex flex-col items-center justify-center text-slate-400">
+      <Loader2 className="w-8 h-8 animate-spin mb-4 text-primary" />
+      <p className="font-semibold animate-pulse text-sm">Memuat Peta Lokasi...</p>
+    </div>
+  ),
+});
 
 interface UserSession {
   email: string;
@@ -21,6 +33,9 @@ export default function SeekerDashboard() {
   const [hospital, setHospital] = useState("");
   const [notes, setNotes] = useState("");
   const [success, setSuccess] = useState(false);
+  
+  // Coordinate selection states
+  const [hospitalCoords, setHospitalCoords] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -43,6 +58,14 @@ export default function SeekerDashboard() {
     router.refresh();
   };
 
+  const handleMapClick = (lat: number, lng: number) => {
+    setHospitalCoords([lat, lng]);
+    // Auto-fill hospital coordinates description if hospital name is empty
+    if (!hospital) {
+      setHospital(`Titik Terpilih (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!bloodType || !rhesus || !hospital) {
@@ -58,6 +81,7 @@ export default function SeekerDashboard() {
       setRhesus("");
       setHospital("");
       setNotes("");
+      setHospitalCoords(null);
       alert("Sinyal Darurat Kebutuhan Darah berhasil dipancarkan ke pendonor terdekat!");
     }, 1500);
   };
@@ -71,16 +95,16 @@ export default function SeekerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
+    <div className="h-screen w-screen bg-slate-50 dark:bg-slate-950 flex flex-col overflow-hidden relative">
       {/* Shared Unified Navbar */}
-      <nav className="w-full bg-white/70 dark:bg-slate-900/70 border-b border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md sticky top-0 z-30">
+      <nav className="w-full bg-white/70 dark:bg-slate-900/70 border-b border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md z-30 shrink-0">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
-            <Heart className="text-primary w-6 h-6 fill-primary" />
+            <Heart className="text-primary w-6 h-6 fill-primary animate-pulse" />
             <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white">BloodConnect</span>
           </Link>
 
-          {/* Mode Switcher Toggle (Freelance Style) */}
+          {/* Mode Switcher Toggle */}
           <div className="flex gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-full border border-slate-200/20">
             <button
               onClick={() => router.push("/dashboard/donor")}
@@ -112,35 +136,55 @@ export default function SeekerDashboard() {
         </div>
       </nav>
 
-      {/* Main Content */}
-      <div className="flex-grow max-w-3xl w-full mx-auto p-6 mt-6">
-        <Link href="/" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white mb-8 transition-colors">
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Kembali ke Beranda
-        </Link>
+      {/* Main Full-Screen Seeker Page area */}
+      <div className="flex-grow relative w-full h-full overflow-hidden z-10 flex">
         
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              <Activity className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Buat Permintaan Darah (Pemohon)</h1>
-              <p className="text-slate-500 text-sm mt-1">Sistem akan mencari pendonor terdekat dalam radius 10km.</p>
+        {/* Full-screen Map for pinning hospital location */}
+        <div className="absolute inset-0 z-0">
+          <MapComponent 
+            preview={false} 
+            onMapClick={handleMapClick}
+            selectedHospitalPosition={hospitalCoords}
+            selectedHospitalName={hospital}
+          />
+        </div>
+
+        {/* Floating Form Panel (Left Side) */}
+        <div className="absolute left-6 top-6 bottom-6 w-[400px] z-10 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden">
+          
+          {/* Header Info */}
+          <div className="shrink-0 mb-4">
+            <Link href="/" className="inline-flex items-center text-xs font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-3">
+              ← Beranda
+            </Link>
+            
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                <Activity className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <h1 className="text-lg font-black text-slate-900 dark:text-white">Pancarkan Sinyal Darurat</h1>
+                <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Sistem memetakan radius 10km ke pendonor terdekat.</p>
+              </div>
             </div>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          {/* Form container - Scrollable */}
+          <form className="flex-grow overflow-y-auto space-y-5 pr-1" onSubmit={handleSubmit}>
             {/* Golongan Darah */}
-            <div>
-              <label className="block text-sm font-medium mb-3">Golongan Darah yang Dibutuhkan</label>
-              <div className="grid grid-cols-4 gap-3">
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Golongan Darah</label>
+              <div className="grid grid-cols-4 gap-2">
                 {['A', 'B', 'AB', 'O'].map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setBloodType(type)}
-                    className={`py-3 rounded-xl border-2 font-bold text-lg transition-all ${bloodType === type ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-700'}`}
+                    className={`py-2 rounded-xl border-2 font-black text-sm transition-all ${
+                      bloodType === type 
+                        ? 'border-primary bg-primary/5 text-primary shadow-sm' 
+                        : 'border-slate-100 dark:border-slate-800 text-slate-500 bg-slate-50/50 dark:bg-slate-950/20 hover:border-slate-200 dark:hover:border-slate-700'
+                    }`}
                   >
                     {type}
                   </button>
@@ -149,60 +193,82 @@ export default function SeekerDashboard() {
             </div>
 
             {/* Rhesus */}
-            <div>
-              <label className="block text-sm font-medium mb-3">Rhesus</label>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rhesus</label>
+              <div className="grid grid-cols-2 gap-2">
                 {['+', '-'].map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setRhesus(type)}
-                    className={`py-3 rounded-xl border-2 font-bold text-lg transition-all ${rhesus === type ? 'border-primary bg-primary/10 text-primary' : 'border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-300 dark:hover:border-slate-700'}`}
+                    className={`py-2 rounded-xl border-2 font-bold text-xs transition-all ${
+                      rhesus === type 
+                        ? 'border-primary bg-primary/5 text-primary shadow-sm' 
+                        : 'border-slate-100 dark:border-slate-800 text-slate-500 bg-slate-50/50 dark:bg-slate-950/20 hover:border-slate-200 dark:hover:border-slate-700'
+                    }`}
                   >
-                    {type === '+' ? 'Positif (+)' : 'Negatif (-)'}
+                    {type === '+' ? 'Rhesus Positif (+)' : 'Rhesus Negatif (-)'}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Lokasi RS */}
-            <div>
-              <label className="block text-sm font-medium mb-3">Rumah Sakit / Lokasi</label>
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Rumah Sakit / Lokasi</label>
               <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
                 <input 
                   type="text" 
                   value={hospital}
                   onChange={(e) => setHospital(e.target.value)}
-                  placeholder="Nama Rumah Sakit..."
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  placeholder="Ketik Nama Rumah Sakit..."
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
                 />
+              </div>
+
+              {/* GPS Coordinates selection notification */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-xl">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1">📍 Koordinat GPS Rumah Sakit</span>
+                {hospitalCoords ? (
+                  <span className="text-xs font-black text-primary animate-pulse">
+                    Lat: {hospitalCoords[0].toFixed(5)}, Lng: {hospitalCoords[1].toFixed(5)}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-400 leading-normal font-semibold block">
+                    💡 Klik area rumah sakit di peta sebelah kanan untuk menandai lokasi GPS secara presisi.
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Catatan Tambahan */}
-            <div>
-              <label className="block text-sm font-medium mb-3">Catatan Tambahan (Opsional)</label>
+            <div className="space-y-2">
+              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">Catatan Tambahan</label>
               <textarea 
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Misal: Butuh 2 kantong, segera."
-                className="w-full px-4 py-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all min-h-[100px]"
+                placeholder="Contoh: Butuh 2 kantong, segera di IGD Dr. Sardjito."
+                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium min-h-[80px]"
               ></textarea>
             </div>
 
-            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 flex gap-3 text-orange-800 dark:text-orange-300 text-sm">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <p>Pastikan informasi yang Anda masukkan valid. Penyalahgunaan sistem akan mengakibatkan pemblokiran akun.</p>
+            <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-900/30 rounded-2xl p-4 flex gap-2.5 text-orange-600 dark:text-orange-400 text-[10px] font-semibold leading-relaxed">
+              <AlertCircle className="w-4.5 h-4.5 shrink-0" />
+              <p>Pastikan informasi medis diisi dengan benar. Pendonor akan merespon berdasarkan golongan darah dan titik koordinat RS Anda.</p>
             </div>
 
-            <button type="submit" disabled={success} className="w-full py-4 bg-primary text-primary-foreground rounded-xl font-bold text-lg hover:bg-primary/90 transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-xl shadow-primary/20 mt-8 disabled:opacity-75">
+            <button 
+              type="submit" 
+              disabled={success} 
+              className="w-full py-3.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/95 transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-75"
+            >
               {success ? (
-                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
                 <>
-                  <Send className="w-5 h-5" />
-                  Pancarkan Sinyal Darurat Darah
+                  <Send className="w-4 h-4" />
+                  Pancarkan Sinyal Sos
                 </>
               )}
             </button>
