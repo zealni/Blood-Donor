@@ -6,8 +6,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { 
   Heart, 
   Bell, 
-  Sun, 
-  Moon, 
   User, 
   LogOut, 
   Award, 
@@ -33,7 +31,6 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [session, setSession] = useState<UserSession | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
   
   // Interactive UI Dropdowns and Modals state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -108,16 +105,9 @@ export default function Navbar() {
       }
     }
 
-    // Theme state
-    const savedTheme = localStorage.getItem("theme");
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (savedTheme === "dark" || (!savedTheme && systemPrefersDark)) {
-      setTheme("dark");
-      document.documentElement.classList.add("dark");
-    } else {
-      setTheme("light");
-      document.documentElement.classList.remove("dark");
-    }
+    // Force light mode
+    document.documentElement.classList.remove("dark");
+    localStorage.removeItem("theme");
 
     // Click outside handler
     const handleClickOutside = (event: MouseEvent) => {
@@ -138,17 +128,6 @@ export default function Navbar() {
     };
   }, []);
 
-  const toggleTheme = () => {
-    if (theme === "light") {
-      setTheme("dark");
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      setTheme("light");
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem("user_session");
@@ -309,14 +288,6 @@ export default function Navbar() {
                 </div>
               )}
 
-              {/* Theme Toggle */}
-              <button 
-                onClick={toggleTheme}
-                className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all text-slate-600 dark:text-slate-300"
-                title={theme === "light" ? "Mode Gelap" : "Mode Terang"}
-              >
-                {theme === "light" ? <Moon className="w-4.5 h-4.5" /> : <Sun className="w-4.5 h-4.5" />}
-              </button>
 
               {/* Notification Center */}
               <div className="relative" ref={notificationRef}>
@@ -458,12 +429,6 @@ export default function Navbar() {
                 )}
               </button>
 
-              <button 
-                onClick={toggleTheme}
-                className="p-2 rounded-lg text-slate-600 dark:text-slate-300"
-              >
-                {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-              </button>
 
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
