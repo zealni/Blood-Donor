@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -88,6 +88,14 @@ interface MapComponentProps {
   selectedHospitalPosition?: [number, number] | null; // Currently pinned position for seekers
   selectedHospitalName?: string;
   highlightedSignalId?: number | null; // ID of the signal to focus on
+  sidebarOpen?: boolean; // Support sidebar collapsing
+  externalRadius?: number;
+  onRadiusChange?: (val: number) => void;
+  externalSearchQuery?: string;
+  onSearchQueryChange?: (val: string) => void;
+  externalFilterBloodType?: string;
+  externalFilterUrgency?: string;
+  onSignalsUpdate?: (signals: any[]) => void;
 }
 
 export default function MapComponent({
@@ -95,25 +103,32 @@ export default function MapComponent({
   onMapClick,
   selectedHospitalPosition,
   selectedHospitalName = "Titik Rumah Sakit Pilihan",
-  highlightedSignalId
+  highlightedSignalId,
+  sidebarOpen = true,
+  externalRadius,
+  onRadiusChange,
+  externalSearchQuery,
+  onSearchQueryChange,
+  externalFilterBloodType = "all",
+  externalFilterUrgency = "all",
+  onSignalsUpdate
 }: MapComponentProps) {
   const [center, setCenter] = useState<[number, number]>([-7.775, 110.380]);
   const [zoom, setZoom] = useState(13);
   const [hasUserLocation, setHasUserLocation] = useState(false);
   
-  // Filtering states
-  const [filterType, setFilterType] = useState<'all' | 'seeker' | 'donor'>('all');
-  const [filterBlood, setFilterBlood] = useState<string>('all');
-  const [filterRhesus, setFilterRhesus] = useState<string>('all');
-  const [filterUrgency, setFilterUrgency] = useState<string>('all');
+  // Local state fallbacks for standalone usage
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [radius, setRadius] = useState<number>(0); // 0 means show all
-  
+
+  // Synchronized State Helpers for Shared Filter HUD
+  const activeRadius = externalRadius !== undefined ? externalRadius : radius;
+  const setActiveRadius = onRadiusChange || setRadius;
+  const activeSearchQuery = externalSearchQuery !== undefined ? externalSearchQuery : searchQuery;
+  const setActiveSearchQuery = onSearchQueryChange || setSearchQuery;
+
   // Dynamic signals list (populated locally if user is far from Jogja)
   const [dynamicSignals, setDynamicSignals] = useState<any[]>([]);
-
-  // Collapsible Filter State
-  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   // DOM ref callback helper to prevent Leaflet from stealing clicks/scrolls
   const preventLeafletPropagation = (node: HTMLElement | null) => {
@@ -247,67 +262,88 @@ export default function MapComponent({
   }, [highlightedSignalId, dynamicSignals]);
 
   // Combine static and dynamic signals
-  const allSignals = [...staticSignals, ...dynamicSignals];
+  const allSignals = useMemo(() => {
+    return [...staticSignals, ...dynamicSignals];
+  }, [dynamicSignals]);
 
   // Filtering Logic
-  const filteredSignals = allSignals.filter((signal) => {
-    // 1. Filter by Signal Type
-    if (filterType !== 'all' && signal.type !== filterType) {
-      return false;
-    }
-    
-    // 2. Filter by Blood Type letter (A, B, AB, O)
-    if (filterBlood !== 'all') {
-      const letter = signal.bloodType.replace(/[+-]/g, '');
-      if (letter !== filterBlood) return false;
-    }
-
-    // 3. Filter by Rhesus
-    if (filterRhesus !== 'all') {
-      const rh = signal.bloodType.includes('+') ? '+' : '-';
-      if (rh !== filterRhesus) return false;
-    }
-
-    // 4. Filter by Urgency
-    if (filterUrgency !== 'all') {
-      if (signal.type === 'seeker' && signal.urgency !== filterUrgency) {
-        return false;
+  const filteredSignals = useMemo(() => {
+    return allSignals.filter((signal) => {
+      // 1. Filter by Blood Type & Rhesus
+      if (externalFilterBloodType && externalFilterBloodType !== 'all') {
+        if (signal.bloodType !== externalFilterBloodType) return false;
       }
-      if (signal.type === 'donor') {
-        return false;
-      }
-    }
-    
-    // 5. Filter by Radius
-    if (radius > 0) {
-      const distance = getDistance(center[0], center[1], signal.position[0], signal.position[1]);
-      if (distance > radius) {
-        return false;
-      }
-    }
 
-    // 6. Filter by Search Query
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
-      const locMatch = signal.location.toLowerCase().includes(q);
-      const bloodMatch = signal.bloodType.toLowerCase().includes(q);
-      if (!locMatch && !bloodMatch) return false;
-    }
-    
-    return true;
-  });
+      // 2. Filter by Urgency
+      if (externalFilterUrgency && externalFilterUrgency !== 'all') {
+        if (signal.type === 'seeker' && signal.urgency !== externalFilterUrgency) {
+          return false;
+        }
+        if (signal.type === 'donor') {
+          return false;
+        }
+      }
+      
+      // 5. Filter by Radius
+      if (activeRadius > 0) {
+        const distance = getDistance(center[0], center[1], signal.position[0], signal.position[1]);
+        if (distance > activeRadius) {
+          return false;
+        }
+      }
+
+      // 6. Filter by Search Query
+      if (activeSearchQuery.trim() !== '') {
+        const q = activeSearchQuery.toLowerCase();
+        const locMatch = signal.location.toLowerCase().includes(q);
+        const bloodMatch = signal.bloodType.toLowerCase().includes(q);
+        if (!locMatch && !bloodMatch) return false;
+      }
+      
+      return true;
+    });
+  }, [allSignals, externalFilterBloodType, externalFilterUrgency, activeRadius, activeSearchQuery, center]);
+
+  // Synchronize filtered seeker signals back to the parent sidebar component dynamically
+  useEffect(() => {
+    if (preview || !onSignalsUpdate) return;
+
+    const seekerRequests = filteredSignals
+      .filter((s) => s.type === 'seeker')
+      .map((s) => {
+        const distance = getDistance(center[0], center[1], s.position[0], s.position[1]);
+        return {
+          id: s.id,
+          hospital: s.location,
+          distance: `${distance.toFixed(1)} km`,
+          bloodType: s.bloodType,
+          urgency: s.urgency,
+          time: s.id === 1 ? "5 menit lalu" : 
+                s.id === 3 ? "34 menit lalu" : 
+                s.id === 5 ? "1 jam lalu" : 
+                s.id === 8 ? "55 menit lalu" : 
+                s.id === 101 ? "12 menit lalu" : "45 menit lalu",
+          requesterId: `user-${s.id}`,
+          phone: s.id === 1 ? "6281234567890" : 
+                 s.id === 3 ? "6289876543210" : 
+                 s.id === 5 ? "6287755443320" : "6281122334450",
+          bagsNeeded: s.id === 1 ? 2 : s.id === 3 ? 3 : s.id === 5 ? 1 : 2
+        };
+      });
+
+    onSignalsUpdate(seekerRequests);
+  }, [filteredSignals, center, onSignalsUpdate, preview]);
 
   const handleResetFilters = () => {
-    setFilterType('all');
-    setFilterBlood('all');
-    setFilterRhesus('all');
-    setFilterUrgency('all');
-    setRadius(0);
-    setSearchQuery('');
+    setActiveRadius(0);
+    setActiveSearchQuery('');
   };
 
   // Determine geolocator offset based on Mode Seeker (which has wider 400px/25rem sidebar) vs Mode Donor (384px/24rem sidebar)
-  const geolocateLeftClass = onMapClick ? "left-[26.5rem]" : "left-[25.5rem]";
+  // If sidebar is closed or on mobile screen, we fallback to left-6
+  const geolocateLeftClass = sidebarOpen 
+    ? (onMapClick ? "left-6 md:left-[26.5rem]" : "left-6 md:left-[25.5rem]")
+    : "left-6";
 
   return (
     <div className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0">
@@ -323,185 +359,6 @@ export default function MapComponent({
           >
             <Crosshair className="w-5 h-5 animate-pulse" />
           </button>
-
-          {/* COLLAPSIBLE FILTER SYSTEM */}
-          {!isFilterExpanded ? (
-            /* Collapsed State: Single Circular Floating Filter Button */
-            <button 
-              ref={preventLeafletPropagation}
-              onClick={() => setIsFilterExpanded(true)}
-              className="absolute top-4 right-4 z-[1000] w-12 h-12 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-primary transition-all hover:scale-110 active:scale-95 shadow-2xl flex items-center justify-center"
-              title="Buka Filter Peta"
-            >
-              <Filter className="w-5 h-5" />
-            </button>
-          ) : (
-            /* Expanded State: Full Filter Panel with Close Button */
-            <div 
-              ref={preventLeafletPropagation}
-              className="absolute top-4 right-4 z-[1000] w-72 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-700/50 p-4 rounded-3xl shadow-xl space-y-4 max-h-[80%] overflow-y-auto custom-mini-scrollbar"
-            >
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-                  <Filter className="w-4 h-4 text-primary" />
-                  <span className="text-xs font-black uppercase tracking-wider">Filter Peta</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleResetFilters}
-                    className="text-[10px] text-slate-400 hover:text-primary font-bold flex items-center gap-1 transition-colors"
-                    title="Reset Filter"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Reset
-                  </button>
-                  <button
-                    onClick={() => setIsFilterExpanded(false)}
-                    className="text-slate-400 hover:text-red-500 font-black text-sm p-1 transition-colors"
-                    title="Tutup Filter"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-
-              {/* Search Input */}
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Cari Rumah Sakit / Lokasi</label>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Ketik lokasi / golongan..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* Signal Type Filter */}
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Tipe Sinyal</label>
-                <div className="grid grid-cols-3 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
-                  {(['all', 'seeker', 'donor'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setFilterType(t)}
-                      className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
-                        filterType === t 
-                          ? 'bg-white dark:bg-slate-800 text-primary shadow-sm' 
-                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      {t === 'all' ? 'Semua' : t === 'seeker' ? 'Butuh' : 'Donor'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Blood Type Grid Filter */}
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Golongan Darah</label>
-                <div className="grid grid-cols-5 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
-                  {['all', 'A', 'B', 'AB', 'O'].map((b) => (
-                    <button
-                      key={b}
-                      onClick={() => setFilterBlood(b)}
-                      className={`py-1 rounded-lg text-[9px] font-extrabold transition-all uppercase ${
-                        filterBlood === b
-                          ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
-                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      {b}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Rhesus Filter */}
-              <div className="space-y-1">
-                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Rhesus</label>
-                <div className="grid grid-cols-3 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
-                  {['all', '+', '-'].map((rh) => (
-                    <button
-                      key={rh}
-                      onClick={() => setFilterRhesus(rh)}
-                      className={`py-1 rounded-lg text-[9px] font-extrabold transition-all ${
-                        filterRhesus === rh
-                          ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
-                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      {rh === 'all' ? 'Semua' : rh === '+' ? 'Pos (+)' : 'Neg (-)'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Urgency Filter */}
-              {filterType !== 'donor' && (
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Urgensi Pemohon</label>
-                  <div className="grid grid-cols-4 gap-1 bg-slate-100/50 dark:bg-slate-950/50 p-0.5 rounded-xl">
-                    {['all', 'Kritis', 'Tinggi', 'Sedang'].map((u) => (
-                      <button
-                        key={u}
-                        onClick={() => setFilterUrgency(u)}
-                        className={`py-1 rounded-lg text-[8px] font-extrabold transition-all ${
-                          filterUrgency === u
-                            ? 'bg-white dark:bg-slate-800 text-primary shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        {u === 'all' ? 'Semua' : u}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Radius Filter */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Radius Lokasi</label>
-                  <span className="text-[9px] font-black text-primary">
-                    {radius === 0 ? 'Semua' : `${radius} km`}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="10"
-                  step="1"
-                  value={radius}
-                  onChange={(e) => {
-                    const val = Number(e.target.value);
-                    if (val > 0 && val <= 2) setRadius(1);
-                    else if (val > 2 && val <= 4) setRadius(3);
-                    else if (val > 4 && val <= 7) setRadius(5);
-                    else if (val > 7) setRadius(10);
-                    else setRadius(0);
-                  }}
-                  className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <div className="flex justify-between text-[7px] text-slate-400 font-bold px-0.5">
-                  <span>Semua</span>
-                  <span>1km</span>
-                  <span>3km</span>
-                  <span>5km</span>
-                  <span>10km</span>
-                </div>
-              </div>
-
-              {/* Filter Results Count Indicator */}
-              <div className="text-[9px] font-extrabold text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-2">
-                <span>Cocok:</span>
-                <span className="text-primary">{filteredSignals.length} dari {allSignals.length} Sinyal</span>
-              </div>
-            </div>
-          )}
         </>
       )}
 
@@ -528,10 +385,10 @@ export default function MapComponent({
         />
         
         {/* Render Radius visual circle around center/user coordinates */}
-        {!preview && radius > 0 && (
+        {!preview && activeRadius > 0 && (
           <Circle
             center={center}
-            radius={radius * 1000} // Radius in meters
+            radius={activeRadius * 1000} // Radius in meters
             pathOptions={{
               color: '#3b82f6',
               fillColor: '#3b82f6',
@@ -547,13 +404,11 @@ export default function MapComponent({
           <>
             <Circle
               center={center}
-              radius={250}
+              radius={120} // Tight elegant GPS glow
               pathOptions={{
-                color: '#3b82f6',
+                stroke: false, // borderless
                 fillColor: '#3b82f6',
-                fillOpacity: 0.12,
-                weight: 1.5,
-                dashArray: '4, 4'
+                fillOpacity: 0.15,
               }}
             />
             <Marker position={center} icon={userIcon}>

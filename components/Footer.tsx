@@ -38,12 +38,9 @@ export default function Footer() {
     history.replaceState(null, "", window.location.pathname);
   };
 
-  const handleScrollToFaq = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const el = document.getElementById("faq");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-    }
+  const handleScrollToBloodMatrix = () => {
+    const el = document.getElementById("blood-matrix");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
@@ -66,13 +63,13 @@ export default function Footer() {
             Platform koordinasi donor darah darurat berbasis geolokasi *real-time*. Mempertemukan pahlawan donor dengan pasien kritis secara instan dan aman.
           </p>
           <div className="flex gap-4">
-            <a href="#" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-primary hover:text-white transition-all">
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer" title="GitHub BloodConnect" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-primary hover:text-white transition-all">
               <Github className="w-4 h-4" />
             </a>
-            <a href="#" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-primary hover:text-white transition-all">
+            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" title="Twitter/X BloodConnect" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-primary hover:text-white transition-all">
               <Twitter className="w-4 h-4" />
             </a>
-            <a href="#" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-primary hover:text-white transition-all">
+            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" title="Instagram BloodConnect" className="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-primary hover:text-white transition-all">
               <Instagram className="w-4 h-4" />
             </a>
           </div>
@@ -95,9 +92,9 @@ export default function Footer() {
               </Link>
             </li>
             <li>
-              <Link href="/#blood-matrix" className="hover:text-primary transition-colors">
+              <button onClick={handleScrollToBloodMatrix} className="hover:text-primary transition-colors">
                 Stok Darah PMI (Mock)
-              </Link>
+              </button>
             </li>
             <li>
               <Link href={isLoggedIn ? "/profile" : "/register"} className="hover:text-primary transition-colors">
@@ -164,8 +161,8 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 pt-10 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-medium text-slate-500">
         <p>&copy; {new Date().getFullYear()} Mortala Production. Hak Cipta Dilindungi Undang-Undang.</p>
         <div className="flex gap-6">
-          <button onClick={handleScrollToFaq} className="hover:text-slate-300">Syarat &amp; Ketentuan</button>
-          <button onClick={handleScrollToFaq} className="hover:text-slate-300">Kebijakan Privasi</button>
+          <Link href="/terms" className="hover:text-slate-300">Syarat &amp; Ketentuan</Link>
+          <Link href="/privacy" className="hover:text-slate-300">Kebijakan Privasi</Link>
           <button onClick={handleScrollToTop} className="hover:text-primary font-bold">
             Kembali ke Atas ↑
           </button>

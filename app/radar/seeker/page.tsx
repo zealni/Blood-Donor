@@ -34,6 +34,7 @@ export default function SeekerDashboard() {
   const [hospital, setHospital] = useState("");
   const [notes, setNotes] = useState("");
   const [success, setSuccess] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Coordinate selection states
   const [hospitalCoords, setHospitalCoords] = useState<[number, number] | null>(null);
@@ -104,17 +105,40 @@ export default function SeekerDashboard() {
             onMapClick={handleMapClick}
             selectedHospitalPosition={hospitalCoords}
             selectedHospitalName={hospital}
+            sidebarOpen={isSidebarOpen}
           />
         </div>
 
+        {/* Toggle Button to open Sidebar when collapsed */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="absolute left-4 md:left-6 top-4 md:top-6 z-30 flex items-center gap-2 px-5 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-rose-200/50 dark:border-rose-900/30 rounded-full shadow-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all hover:scale-105 active:scale-95 duration-300 font-black text-xs"
+          >
+            <Activity className="w-4 h-4 text-primary animate-pulse" />
+            <span>Pancarkan Sinyal</span>
+          </button>
+        )}
+
         {/* Floating Form Panel (Left Side) */}
-        <div className="absolute left-6 top-6 bottom-6 w-[400px] z-10 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden">
+        <div className={`absolute top-4 md:top-6 bottom-4 md:bottom-6 left-4 md:left-6 w-[calc(100%-2rem)] md:w-[400px] z-20 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden transition-all duration-300 ${
+          isSidebarOpen 
+            ? "translate-x-0 opacity-100" 
+            : "-translate-x-[120%] opacity-0 pointer-events-none"
+        }`}>
           
           {/* Header Info */}
           <div className="shrink-0 mb-4">
-            <Link href="/" className="inline-flex items-center text-xs font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-3">
-              ← Beranda
-            </Link>
+            <div className="flex justify-between items-center mb-3">
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="inline-flex items-center text-xs font-bold text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors gap-1"
+                title="Sembunyikan Panel"
+              >
+                ← Sembunyikan Panel
+              </button>
+            </div>
             
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">

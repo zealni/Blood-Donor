@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Activity, Clock, HeartHandshake, Search, Check, AlertCircle, Loader2 } from "lucide-react";
+import { MapPin, Activity, Clock, HeartHandshake, Search, Check, AlertCircle, Loader2, Filter } from "lucide-react";
 import dynamic from "next/dynamic";
 import Navbar from "@/components/Navbar";
 
@@ -42,6 +42,11 @@ export default function DonorDashboard() {
   const [mounted, setMounted] = useState(false);
   const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [radius, setRadius] = useState<number>(0); // 0 means show all
+  const [filterBloodType, setFilterBloodType] = useState("all");
+  const [filterUrgency, setFilterUrgency] = useState("all");
+  const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
   
   // Handshake Modal States
   const [handshakeReq, setHandshakeReq] = useState<RequestSignal | null>(null);
@@ -63,19 +68,8 @@ export default function DonorDashboard() {
   }, [router]);
 
 
-  // Mock Requests matching coordinate positions in MapComponent
-  const requests: RequestSignal[] = [
-    { id: 1, hospital: "RSUP Dr. Sardjito", distance: "1.2 km", bloodType: "A+", urgency: "Kritis", time: "5 menit lalu", requesterId: "user-101", phone: "6281234567890", bagsNeeded: 2 },
-    { id: 3, hospital: "RS Panti Rapih", distance: "2.8 km", bloodType: "AB-", urgency: "Tinggi", time: "34 menit lalu", requesterId: "user-102", phone: "6289876543210", bagsNeeded: 3 },
-    { id: 5, hospital: "RS Bethesda", distance: "3.5 km", bloodType: "O-", urgency: "Sedang", time: "1 jam lalu", requesterId: "user-103", phone: "6287755443320", bagsNeeded: 1 },
-    { id: 8, hospital: "RS JIH", distance: "5.1 km", bloodType: "O+", urgency: "Kritis", time: "55 menit lalu", requesterId: "user-104", phone: "6281122334450", bagsNeeded: 2 },
-  ];
-
-  // Filtering list based on sidebar search
-  const filteredRequests = requests.filter((req) => {
-    const q = searchQuery.toLowerCase();
-    return req.hospital.toLowerCase().includes(q) || req.bloodType.toLowerCase().includes(q);
-  });
+  // Seeker requests state populated dynamically from MapComponent
+  const [requests, setRequests] = useState<RequestSignal[]>([]);
 
   const handleHandshakeInit = (req: RequestSignal) => {
     setHandshakeReq(req);
@@ -115,18 +109,45 @@ export default function DonorDashboard() {
           <MapComponent 
             preview={false} 
             highlightedSignalId={highlightedId}
+            sidebarOpen={isSidebarOpen}
+            externalRadius={radius}
+            onRadiusChange={setRadius}
+            externalSearchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            externalFilterBloodType={filterBloodType}
+            externalFilterUrgency={filterUrgency}
+            onSignalsUpdate={setRequests}
           />
         </div>
 
+        {/* Toggle Button to open Sidebar when collapsed */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="absolute left-4 md:left-6 top-4 md:top-6 z-30 flex items-center gap-2 px-5 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-rose-200/50 dark:border-rose-900/30 rounded-full shadow-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all hover:scale-105 active:scale-95 duration-300 font-black text-xs"
+          >
+            <HeartHandshake className="w-4 h-4 text-primary animate-pulse" />
+            <span>Tampilkan Sinyal</span>
+          </button>
+        )}
+
         {/* Floating Sidebar (Left Side) */}
-        <div className="absolute left-6 top-6 bottom-6 w-96 z-10 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden">
+        <div className={`absolute top-4 md:top-6 bottom-4 md:bottom-6 left-4 md:left-6 w-[calc(100%-2rem)] md:w-96 z-20 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden transition-all duration-300 ${
+          isSidebarOpen 
+            ? "translate-x-0 opacity-100" 
+            : "-translate-x-[120%] opacity-0 pointer-events-none"
+        }`}>
           
           {/* Header info */}
           <div className="shrink-0 mb-4">
             <div className="flex justify-between items-center mb-4">
-              <Link href="/" className="inline-flex items-center text-xs font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                ← Beranda
-              </Link>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="inline-flex items-center text-xs font-bold text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors gap-1"
+                title="Sembunyikan Panel"
+              >
+                ← Sembunyikan Panel
+              </button>
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -140,26 +161,142 @@ export default function DonorDashboard() {
               Sinyal Donor Sekitar
             </h1>
             <p className="text-slate-400 text-xs mt-1">
-              Menampilkan {filteredRequests.length} pemohon di Yogyakarta.
+              Menampilkan {requests.length} pemohon di sekitar Anda.
             </p>
           </div>
-
-          {/* Search box for filtering requests list */}
-          <div className="relative shrink-0 mb-4">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Cari RS atau Golongan Darah..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
-            />
+          {/* Unified Search & Filter Control Row */}
+          <div className="flex gap-2 mb-4 shrink-0">
+            <div className="relative flex-grow">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari RS atau Golongan Darah..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsAdvancedFilterOpen(!isAdvancedFilterOpen)}
+              className={`px-3.5 py-2.5 rounded-xl border flex items-center justify-center transition-all hover:scale-105 active:scale-95 duration-200 ${
+                isAdvancedFilterOpen || filterBloodType !== 'all' || filterUrgency !== 'all'
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-slate-200 dark:border-slate-800 text-slate-400 bg-slate-50 dark:bg-slate-950/40 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+              title="Filter Lanjutan"
+            >
+              <Filter className="w-4 h-4" />
+            </button>
           </div>
+
+          {/* Quick Segmented Radius Tabs (Ultra-Clean, space saving) */}
+          <div className="shrink-0 mb-4 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl">
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Radius Jangkauan</label>
+              <span className="text-[9px] font-black text-primary px-2 py-0.5 bg-primary/10 rounded-full leading-none">
+                {radius === 0 ? "Semua Jarak" : `${radius} km`}
+              </span>
+            </div>
+            <div className="grid grid-cols-5 gap-1 bg-white dark:bg-slate-900 p-0.5 rounded-xl border border-slate-200/30 dark:border-slate-800/30">
+              {[0, 1, 3, 5, 10].map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRadius(r)}
+                  className={`py-1.5 rounded-lg text-[9px] font-black transition-all ${
+                    radius === r
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {r === 0 ? 'Semua' : `${r}km`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Collapsible Advanced Filters Accordion (Ultra-Premium Seamless Design) */}
+          {isAdvancedFilterOpen && (
+            <div className="shrink-0 mb-4 border border-rose-100 dark:border-slate-800 rounded-3xl overflow-hidden shadow-lg bg-rose-50/20 dark:bg-slate-950/20 p-5 space-y-4 animate-in slide-in-from-top-4 duration-300">
+              <div className="flex justify-between items-center border-b border-rose-100/50 dark:border-slate-800 pb-2">
+                <span className="text-[10px] font-black text-slate-400 tracking-wider">FILTER LANJUTAN</span>
+                {(filterBloodType !== 'all' || filterUrgency !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterBloodType('all');
+                      setFilterUrgency('all');
+                    }}
+                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 transition-colors uppercase"
+                  >
+                    Reset Filter
+                  </button>
+                )}
+              </div>
+
+              {/* Golongan Darah & Rhesus Grid */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Golongan Darah & Rhesus</label>
+                  {filterBloodType !== 'all' && (
+                    <span className="text-[9px] font-black text-primary px-2 py-0.5 bg-primary/10 rounded-full uppercase leading-none">
+                      Aktif: {filterBloodType}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-1.5 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/40 dark:border-slate-800/30">
+                  {['all', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setFilterBloodType(b)}
+                      className={`py-2 rounded-xl text-[10px] font-black transition-all ${
+                        filterBloodType === b
+                          ? 'bg-primary text-white shadow-sm scale-[1.02]'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      {b === 'all' ? 'Semua Gol.' : b}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Urgensi Pemohon */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-wider">Tingkat Urgensi</label>
+                  {filterUrgency !== 'all' && (
+                    <span className="text-[9px] font-black text-primary px-2 py-0.5 bg-primary/10 rounded-full uppercase leading-none">
+                      {filterUrgency}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-4 gap-1.5 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-200/40 dark:border-slate-800/30">
+                  {['all', 'Kritis', 'Tinggi', 'Sedang'].map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setFilterUrgency(u)}
+                      className={`py-2 rounded-xl text-[9px] font-black transition-all ${
+                        filterUrgency === u
+                          ? 'bg-primary text-white shadow-sm scale-[1.02]'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/40 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      {u === 'all' ? 'Semua' : u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Scrollable list of active requests */}
           <div className="flex-grow overflow-y-auto space-y-4 pr-1">
-            {filteredRequests.length > 0 ? (
-              filteredRequests.map((req) => (
+            {requests.length > 0 ? (
+              requests.map((req) => (
                 <div
                   key={req.id}
                   onClick={() => setHighlightedId(req.id)}
@@ -187,17 +324,17 @@ export default function DonorDashboard() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3.5 mb-3">
-                    <div className="w-11 h-11 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-primary border border-rose-200/50 dark:border-rose-900/30 flex flex-col items-center justify-center shrink-0">
+                  <div className="flex items-center gap-4 mb-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-red-600 text-white flex flex-col items-center justify-center shrink-0 shadow-md shadow-rose-500/20">
                       <span className="text-base font-black leading-none">{req.bloodType.replace(/[+-]/g, '')}</span>
-                      <span className="text-[9px] font-bold">{req.bloodType.includes('+') ? 'POS' : 'NEG'}</span>
+                      <span className="text-[8px] font-extrabold mt-0.5 leading-none">{req.bloodType.includes('+') ? 'POS' : 'NEG'}</span>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200 line-clamp-1">
+                    <div className="flex-grow min-w-0">
+                      <h3 className="font-black text-sm text-slate-800 dark:text-slate-200 line-clamp-1">
                         {req.hospital}
                       </h3>
-                      <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-3.5 h-3.5" />
+                      <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-1">
+                        <MapPin className="w-3.5 h-3.5 text-primary/70" />
                         Jarak {req.distance} • Butuh {req.bagsNeeded} kantong
                       </p>
                     </div>
