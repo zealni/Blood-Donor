@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check } from 'lucide-react';
+import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check, Map, Globe } from 'lucide-react';
 
 // Custom icons using HTML to keep the pulsing effect
 const createCustomIcon = (type: 'seeker' | 'donor' | 'user' | 'selected') => {
@@ -116,6 +116,7 @@ export default function MapComponent({
   const [center, setCenter] = useState<[number, number]>([-7.775, 110.380]);
   const [zoom, setZoom] = useState(13);
   const [hasUserLocation, setHasUserLocation] = useState(false);
+  const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
   
   // Local state fallbacks for standalone usage
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -350,6 +351,37 @@ export default function MapComponent({
       
       {!preview && (
         <>
+          {/* Map Layer Switcher Overlay - Premium glassmorphic buttons absolute top-right */}
+          <div 
+            ref={preventLeafletPropagation}
+            className="absolute top-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 p-1 rounded-2xl shadow-xl flex gap-1 animate-in fade-in duration-300"
+          >
+            <button
+              type="button"
+              onClick={() => setMapMode('streets')}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5 ${
+                mapMode === 'streets'
+                  ? 'bg-primary text-white shadow-md scale-[1.02]'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <Map className="w-3.5 h-3.5" />
+              <span>Jalan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMapMode('satellite')}
+              className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-1.5 ${
+                mapMode === 'satellite'
+                  ? 'bg-primary text-white shadow-md scale-[1.02]'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Satelit</span>
+            </button>
+          </div>
+
           {/* Repositioned Manual Geolocation Button - floats right next to the left sidebar corner */}
           <button 
             ref={preventLeafletPropagation}
@@ -379,10 +411,17 @@ export default function MapComponent({
           <MapEventsHandler onMapClick={onMapClick} />
         )}
         
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        />
+        {mapMode === 'streets' ? (
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          />
+        ) : (
+          <TileLayer
+            attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          />
+        )}
         
         {/* Render Radius visual circle around center/user coordinates */}
         {!preview && activeRadius > 0 && (
