@@ -17,7 +17,7 @@ const MapComponent = dynamic(() => import("./MapComponent"), {
 
 export default function LiveSignalMap() {
   return (
-    <div className="relative w-full aspect-square md:aspect-[4/3]">
+    <div className="relative w-full aspect-square md:aspect-[4/3] overflow-hidden">
       <MapComponent preview={true} />
     </div>
   );

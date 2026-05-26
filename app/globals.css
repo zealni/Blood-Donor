@@ -80,3 +80,28 @@
 .glass {
   @apply bg-white/70 dark:bg-black/70 backdrop-blur-md border border-white/20 dark:border-white/10;
 }
+
+/*
+  DEFINITIVE Leaflet overflow fix.
+  
+  overflow:clip (unlike overflow:hidden) does NOT create a new scroll container.
+  This means Leaflet's internal .leaflet-proxy element — which Leaflet moves to
+  translate3d(3,000,000px, 2,000,000px) for zoom animation — cannot escape the
+  container and push the page scrollHeight beyond the footer.
+
+  contain:layout tells the browser this element's layout is isolated,
+  so internal transforms cannot affect the outer document's scroll geometry.
+*/
+.leaflet-container {
+  overflow: clip !important;
+  contain: strict !important;
+}
+
+/* Prevent any absolutely-positioned decorative elements from expanding scroll height */
+html {
+  overflow-x: clip;
+}
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}

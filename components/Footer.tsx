@@ -34,6 +34,16 @@ export default function Footer() {
 
   const handleScrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
+    // Remove hash from URL to avoid ghost scroll on next visit
+    history.replaceState(null, "", window.location.pathname);
+  };
+
+  const handleScrollToFaq = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const el = document.getElementById("faq");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   return (
@@ -154,8 +164,8 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 pt-10 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-medium text-slate-500">
         <p>&copy; {new Date().getFullYear()} Mortala Production. Hak Cipta Dilindungi Undang-Undang.</p>
         <div className="flex gap-6">
-          <Link href="/#faq" className="hover:text-slate-300">Syarat &amp; Ketentuan</Link>
-          <Link href="/#faq" className="hover:text-slate-300">Kebijakan Privasi</Link>
+          <button onClick={handleScrollToFaq} className="hover:text-slate-300">Syarat &amp; Ketentuan</button>
+          <button onClick={handleScrollToFaq} className="hover:text-slate-300">Kebijakan Privasi</button>
           <button onClick={handleScrollToTop} className="hover:text-primary font-bold">
             Kembali ke Atas ↑
           </button>
