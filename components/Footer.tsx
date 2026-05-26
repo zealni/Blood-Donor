@@ -1,12 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Heart, Send, Github, Twitter, Instagram, PhoneCall, Mail, MapPin } from "lucide-react";
 
 export default function Footer() {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const storedSession = localStorage.getItem("user_session");
+    if (storedSession) {
+      try {
+        const parsed = JSON.parse(storedSession);
+        if (parsed.isLoggedIn) {
+          setIsLoggedIn(true);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,23 +75,23 @@ export default function Footer() {
           </h4>
           <ul className="space-y-2.5 text-sm font-semibold">
             <li>
-              <Link href="/login" className="hover:text-primary transition-colors">
+              <Link href={isLoggedIn ? "/radar/seeker" : "/login?redirect=/radar/seeker"} className="hover:text-primary transition-colors">
                 Butuh Donor Darah
               </Link>
             </li>
             <li>
-              <Link href="/login" className="hover:text-primary transition-colors">
+              <Link href={isLoggedIn ? "/radar/donor" : "/login?redirect=/radar/donor"} className="hover:text-primary transition-colors">
                 Gabung Jadi Donor
               </Link>
             </li>
             <li>
-              <Link href="#" className="hover:text-primary transition-colors">
+              <Link href="/#blood-matrix" className="hover:text-primary transition-colors">
                 Stok Darah PMI (Mock)
               </Link>
             </li>
             <li>
-              <Link href="/register" className="hover:text-primary transition-colors">
-                Registrasi Anggota
+              <Link href={isLoggedIn ? "/profile" : "/register"} className="hover:text-primary transition-colors">
+                {isLoggedIn ? "Profil Saya" : "Registrasi Anggota"}
               </Link>
             </li>
           </ul>
@@ -139,8 +154,8 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto px-6 pt-10 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs font-medium text-slate-500">
         <p>&copy; {new Date().getFullYear()} Mortala Production. Hak Cipta Dilindungi Undang-Undang.</p>
         <div className="flex gap-6">
-          <a href="#" className="hover:text-slate-300">Syarat & Ketentuan</a>
-          <a href="#" className="hover:text-slate-300">Kebijakan Privasi</a>
+          <Link href="/#faq" className="hover:text-slate-300">Syarat &amp; Ketentuan</Link>
+          <Link href="/#faq" className="hover:text-slate-300">Kebijakan Privasi</Link>
           <button onClick={handleScrollToTop} className="hover:text-primary font-bold">
             Kembali ke Atas ↑
           </button>

@@ -542,18 +542,31 @@ export default function MapComponent({
           />
         )}
 
-        {/* User's active location pulsing marker */}
-        {!preview && hasUserLocation && (
-          <Marker position={center} icon={userIcon}>
-            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-              <div className="font-sans px-1 py-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-1">
-                  🔵 Lokasi Anda
+        {/* User's active location pulsing marker with a soft blue location circle */}
+        {hasUserLocation && (
+          <>
+            <Circle
+              center={center}
+              radius={250}
+              pathOptions={{
+                color: '#3b82f6',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.12,
+                weight: 1.5,
+                dashArray: '4, 4'
+              }}
+            />
+            <Marker position={center} icon={userIcon}>
+              <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+                <div className="font-sans px-1 py-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-blue-500 mb-1">
+                    🔵 Lokasi Anda
+                  </div>
+                  <div className="font-black text-sm text-slate-900">Pusat Jangkauan Filter</div>
                 </div>
-                <div className="font-black text-sm text-slate-900">Pusat Jangkauan Filter</div>
-              </div>
-            </Popup>
-          </Marker>
+              </Popup>
+            </Marker>
+          </>
         )}
 
         {/* DRAG-AND-DROP SELECTED HOSPITAL MARKER */}
@@ -613,6 +626,10 @@ export default function MapComponent({
           <div className="flex items-center gap-3">
             <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)] border-2 border-white" />
             <span className="text-slate-700 dark:text-slate-200">Siap Donor</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="w-3.5 h-3.5 rounded-full bg-blue-500 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)] border-2 border-white" />
+            <span className="text-slate-700 dark:text-slate-200">Lokasi Anda</span>
           </div>
           {selectedHospitalPosition && (
             <div className="flex items-center gap-3">

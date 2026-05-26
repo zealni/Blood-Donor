@@ -39,7 +39,7 @@ export default function FaqSection() {
   };
 
   return (
-    <section className="w-full py-24 bg-slate-50/50 dark:bg-slate-950/20 border-t border-slate-200 dark:border-slate-800/80 relative overflow-hidden">
+    <section id="faq" className="w-full py-24 bg-slate-50/50 dark:bg-slate-950/20 border-t border-slate-200 dark:border-slate-800/80 relative overflow-hidden">
       <div className="max-w-4xl mx-auto px-6 relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-3.5 py-1.5 rounded-full">
