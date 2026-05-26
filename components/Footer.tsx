@@ -98,7 +98,7 @@ export default function Footer() {
             </li>
             <li className="flex items-center gap-2">
               <Mail className="w-4 h-4 text-slate-500 shrink-0" />
-              <span className="text-xs break-all">support@bloodconnect.id</span>
+              <span className="text-xs break-all">mortala.production@gmail.com</span>
             </li>
           </ul>
         </div>

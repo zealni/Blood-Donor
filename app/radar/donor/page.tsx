@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Activity, Clock, HeartHandshake, User, LogOut, Heart, Search, Check, AlertCircle, Loader2 } from "lucide-react";
+import { MapPin, Activity, Clock, HeartHandshake, Search, Check, AlertCircle, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
+import Navbar from "@/components/Navbar";
 
 // Dynamic import of MapComponent to prevent SSR issues with Leaflet
 const MapComponent = dynamic(() => import("@/components/MapComponent"), {
@@ -50,22 +51,17 @@ export default function DonorDashboard() {
     setMounted(true);
     const storedSession = localStorage.getItem("user_session");
     if (!storedSession) {
-      router.push("/login?redirect=/dashboard/donor");
+      router.push("/login?redirect=/radar/donor");
       return;
     }
     try {
       setSession(JSON.parse(storedSession));
     } catch (e) {
       console.error(e);
-      router.push("/login?redirect=/dashboard/donor");
+      router.push("/login?redirect=/radar/donor");
     }
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user_session");
-    router.push("/");
-    router.refresh();
-  };
 
   // Mock Requests matching coordinate positions in MapComponent
   const requests: RequestSignal[] = [
@@ -109,45 +105,7 @@ export default function DonorDashboard() {
 
   return (
     <div className="h-screen w-screen bg-slate-50 dark:bg-slate-950 flex flex-col overflow-hidden relative">
-      {/* Shared Unified Navbar */}
-      <nav className="w-full bg-white/70 dark:bg-slate-900/70 border-b border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md z-30 shrink-0">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <Link href="/" className="flex items-center gap-2">
-            <Heart className="text-primary w-6 h-6 fill-primary animate-pulse" />
-            <span className="font-extrabold text-xl tracking-tight text-slate-900 dark:text-white">BloodConnect</span>
-          </Link>
-
-          {/* Mode Switcher Toggle (Freelance Style) */}
-          <div className="flex gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-full border border-slate-200/20">
-            <button
-              onClick={() => router.push("/dashboard/donor")}
-              className="px-4 py-2 rounded-full font-bold text-xs bg-white dark:bg-slate-800 text-primary shadow-sm transition-all"
-            >
-              Mode Pendonor
-            </button>
-            <button
-              onClick={() => router.push("/dashboard/seeker")}
-              className="px-4 py-2 rounded-full font-bold text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-all"
-            >
-              Mode Pemohon
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link href="/profile" className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-full hover:bg-slate-100 transition-all">
-              <User className="w-3.5 h-3.5 text-primary" />
-              {session.fullName}
-            </Link>
-            <button 
-              onClick={handleLogout} 
-              className="p-2 text-slate-500 hover:text-red-500 transition-colors"
-              title="Keluar"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Main Full-Screen Map Container area */}
       <div className="flex-grow relative w-full h-full overflow-hidden z-10 flex">

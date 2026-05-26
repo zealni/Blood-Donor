@@ -77,7 +77,7 @@ export default function ActiveRequests({ onCTA }: ActiveRequestsProps) {
           </div>
           <div>
             <button
-              onClick={() => onCTA("/dashboard/donor")}
+              onClick={() => onCTA("/radar/donor")}
               className="group inline-flex items-center gap-2 text-sm font-bold text-primary hover:text-rose-600 transition-colors"
             >
               Lihat Semua Permintaan
@@ -140,7 +140,7 @@ export default function ActiveRequests({ onCTA }: ActiveRequestsProps) {
               </div>
 
               <button
-                onClick={() => onCTA("/dashboard/donor")}
+                onClick={() => onCTA("/radar/donor")}
                 className="w-full py-3 bg-slate-900 dark:bg-slate-800 text-white font-bold text-xs rounded-xl hover:bg-primary dark:hover:bg-primary transition-all duration-300 flex items-center justify-center gap-2 group-hover:shadow-[0_0_20px_rgba(225,29,72,0.25)]"
               >
                 <Heart className="w-3.5 h-3.5 fill-current" />

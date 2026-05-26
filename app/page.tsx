@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Activity, ShieldCheck, MapPin, ArrowRight, User, LogOut } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import Navbar from "@/components/Navbar";
 import LiveSignalMap from "@/components/LiveSignalMap";
 import ActiveRequests from "@/components/ActiveRequests";
 import HowItWorks from "@/components/HowItWorks";
@@ -33,12 +34,6 @@ export default function Home() {
     }
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user_session");
-    setSession(null);
-    router.refresh();
-  };
-
   const handleCTA = (targetPath: string) => {
     if (session?.isLoggedIn) {
       router.push(targetPath);
@@ -48,50 +43,14 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-slate-50 dark:bg-slate-950 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center bg-slate-50 dark:bg-slate-950 relative overflow-hidden w-full">
+      {/* Reusable Premium Navbar */}
+      <Navbar />
+
       {/* Background decoration */}
       <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Navigation */}
-      <nav className="w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center z-20">
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <Heart className="text-primary w-8 h-8 fill-primary" />
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-            </span>
-          </div>
-          <span className="font-extrabold text-2xl tracking-tight text-slate-900 dark:text-white">BloodConnect</span>
-        </div>
-        <div className="flex gap-3 items-center">
-          {session?.isLoggedIn ? (
-            <>
-              <Link href="/profile" className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all">
-                <User className="w-4 h-4 text-primary" />
-                {session.fullName}
-              </Link>
-              <button 
-                onClick={handleLogout} 
-                className="p-2.5 text-slate-500 hover:text-red-500 transition-colors"
-                title="Keluar"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="px-5 py-2.5 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors">
-                Masuk
-              </Link>
-              <Link href="/register" className="px-6 py-2.5 text-sm font-bold bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-full hover:scale-105 transition-transform shadow-lg">
-                Daftar
-              </Link>
-            </>
-          )}
-        </div>
-      </nav>
 
       {/* Hero Section with Map */}
       <main className="w-full max-w-7xl mx-auto px-6 pt-12 pb-24 grid lg:grid-cols-2 gap-16 items-center z-10 flex-grow">
@@ -116,14 +75,14 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
             <button 
-              onClick={() => handleCTA("/dashboard/seeker")} 
+              onClick={() => handleCTA("/radar/seeker")} 
               className="group flex-1 px-8 py-4 bg-primary text-primary-foreground rounded-2xl font-bold text-lg hover:bg-primary/90 transition-all hover:shadow-[0_0_30px_rgba(225,29,72,0.3)] hover:-translate-y-1 flex items-center justify-center gap-2"
             >
               Butuh Darah
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
             <button 
-              onClick={() => handleCTA("/dashboard/donor")} 
+              onClick={() => handleCTA("/radar/donor")} 
               className="flex-1 px-8 py-4 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-white rounded-2xl font-bold text-lg hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-all hover:-translate-y-1 flex items-center justify-center gap-2 shadow-sm backdrop-blur-sm"
             >
               Jadi Pendonor

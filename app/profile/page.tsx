@@ -154,7 +154,7 @@ export default function ProfilePage() {
 
       <div className="max-w-2xl mx-auto z-10 relative">
         <div className="flex justify-between items-center mb-8">
-          <Link href="/dashboard/donor" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
+          <Link href="/radar/donor" className="inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Kembali ke Dashboard
           </Link>

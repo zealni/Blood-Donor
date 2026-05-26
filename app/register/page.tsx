@@ -8,7 +8,7 @@ import { Heart, User, Mail, Lock, Eye, EyeOff, ArrowRight, Calendar } from "luci
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/dashboard/donor";
+  const redirectPath = searchParams.get("redirect") || "/radar/donor";
   
   // Fields
   const [fullName, setFullName] = useState("");

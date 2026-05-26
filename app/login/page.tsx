@@ -8,7 +8,7 @@ import { Heart, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/dashboard/donor";
+  const redirectPath = searchParams.get("redirect") || "/radar/donor";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
