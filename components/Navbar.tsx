@@ -178,7 +178,11 @@ export default function Navbar() {
               {/* PMI stock mini widget */}
               <div className="relative hidden md:block" ref={pmiRef}>
                 <button 
-                  onClick={() => setIsPmiWidgetOpen(!isPmiWidgetOpen)}
+                  onClick={() => {
+                    setIsPmiWidgetOpen(!isPmiWidgetOpen);
+                    setIsNotificationOpen(false);
+                    setIsProfileOpen(false);
+                  }}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/70 transition-all shadow-sm"
                 >
                   <span className="relative flex h-2 w-2">
@@ -244,14 +248,24 @@ export default function Navbar() {
                 Peta Radar
               </Link>
               <button 
-                onClick={() => setIsLeaderboardOpen(true)}
+                onClick={() => {
+                  setIsLeaderboardOpen(true);
+                  setIsNotificationOpen(false);
+                  setIsPmiWidgetOpen(false);
+                  setIsProfileOpen(false);
+                }}
                 className="px-4 py-2 rounded-full text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5"
               >
                 <Award className="w-4 h-4 text-amber-500" />
                 Peringkat
               </button>
               <button 
-                onClick={() => setIsEduOpen(true)}
+                onClick={() => {
+                  setIsEduOpen(true);
+                  setIsNotificationOpen(false);
+                  setIsPmiWidgetOpen(false);
+                  setIsProfileOpen(false);
+                }}
                 className="px-4 py-2 rounded-full text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all flex items-center gap-1.5"
               >
                 <BookOpen className="w-4 h-4 text-emerald-500" />
@@ -292,7 +306,11 @@ export default function Navbar() {
               {/* Notification Center */}
               <div className="relative" ref={notificationRef}>
                 <button 
-                  onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                  onClick={() => {
+                    setIsNotificationOpen(!isNotificationOpen);
+                    setIsPmiWidgetOpen(false);
+                    setIsProfileOpen(false);
+                  }}
                   className="relative p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all text-slate-600 dark:text-slate-300"
                   title="Notifikasi"
                 >
@@ -358,13 +376,17 @@ export default function Navbar() {
               {session?.isLoggedIn ? (
                 <div className="relative" ref={profileRef}>
                   <button 
-                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    onClick={() => {
+                      setIsProfileOpen(!isProfileOpen);
+                      setIsNotificationOpen(false);
+                      setIsPmiWidgetOpen(false);
+                    }}
                     className="flex items-center gap-2.5 px-4 py-2.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all font-bold text-sm text-slate-700 dark:text-slate-200 shadow-sm"
                   >
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary font-black text-xs border border-primary/20">
                       {session.fullName.charAt(0).toUpperCase()}
                     </div>
-                    <span className="max-w-[100px] truncate">{session.fullName}</span>
+                    <span className="max-w-[160px] truncate">{session.fullName}</span>
                     <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -431,7 +453,12 @@ export default function Navbar() {
 
 
               <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                onClick={() => {
+                  setIsMobileMenuOpen(!isMobileMenuOpen);
+                  setIsNotificationOpen(false);
+                  setIsPmiWidgetOpen(false);
+                  setIsProfileOpen(false);
+                }}
                 className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
