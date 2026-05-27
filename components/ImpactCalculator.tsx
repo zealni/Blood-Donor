@@ -40,10 +40,10 @@ export default function ImpactCalculator() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-12 gap-12 items-center">
+        <div className="grid lg:grid-cols-12 gap-12 items-stretch">
           {/* Left Side: Inputs */}
-          <div className="lg:col-span-5 space-y-8">
-            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl space-y-8">
+          <div className="lg:col-span-5 flex flex-col">
+            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl space-y-8 h-full flex flex-col justify-center">
               {/* Frequency slider */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -99,9 +99,9 @@ export default function ImpactCalculator() {
           </div>
 
           {/* Center/Right Side: Dynamic Visualization */}
-          <div className="lg:col-span-7 grid md:grid-cols-2 gap-6 h-full">
+          <div className="lg:col-span-7 grid md:grid-cols-2 gap-6">
             {/* Visual Droplet animation panel */}
-            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden">
+            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl flex flex-col justify-between items-center text-center relative overflow-hidden h-full">
               <h3 className="font-extrabold text-xs uppercase tracking-wider text-slate-400">
                 Visualisasi Volume Darah
               </h3>
@@ -133,7 +133,7 @@ export default function ImpactCalculator() {
             </div>
 
             {/* Numeric Stats */}
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6 h-full">
               {/* Stat card 1 */}
               <div className="glass dark:bg-slate-900/60 p-6 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-xl flex-1 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/20 text-red-500 flex items-center justify-center shrink-0">

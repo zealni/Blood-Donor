@@ -175,54 +175,7 @@ export default function Navbar() {
                 </span>
               </Link>
 
-              {/* PMI stock mini widget */}
-              <div className="relative hidden md:block" ref={pmiRef}>
-                <button 
-                  onClick={() => {
-                    setIsPmiWidgetOpen(!isPmiWidgetOpen);
-                    setIsNotificationOpen(false);
-                    setIsProfileOpen(false);
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800/70 transition-all shadow-sm"
-                >
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <span>PMI DIY: SIAGA</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isPmiWidgetOpen ? 'rotate-180' : ''}`} />
-                </button>
 
-                {/* PMI Stock Dropdown Popover */}
-                {isPmiWidgetOpen && (
-                  <div className="absolute left-0 mt-2 w-72 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-150 z-50">
-                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-                        <Activity className="w-3.5 h-3.5 text-primary" />
-                        Stok Darah PMI DIY
-                      </span>
-                      <span className="text-[10px] text-slate-400">Aktual: Hari Ini</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {bloodStocks.map(stock => (
-                        <div key={stock.type} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-black text-slate-800 dark:text-white">{stock.type}</span>
-                            <span className={`w-1.5 h-1.5 rounded-full ${stock.color}`} />
-                          </div>
-                          <div className="text-right">
-                            <span className="text-sm font-bold text-slate-800 dark:text-white block leading-none">{stock.count}</span>
-                            <span className="text-[9px] font-semibold text-slate-400">{stock.status}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-[10px] text-center text-slate-400 italic">
-                      Membutuhkan golongan AB- / O- mendesak. Hubungi PMI terdekat.
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Middle Nav Capsule (Links) */}
@@ -276,31 +229,6 @@ export default function Navbar() {
             {/* Right Buttons: Theme, Notif, Session/Login */}
             <div className="hidden lg:flex items-center gap-4">
               
-              {/* Mode Switcher Toggle for Radar pages */}
-              {pathname.startsWith("/radar") && (
-                <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-full border border-slate-200/50 dark:border-slate-800/50 mr-1.5">
-                  <button
-                    onClick={() => router.push("/radar/donor")}
-                    className={`px-3.5 py-1.5 rounded-full font-bold text-xs transition-all ${
-                      pathname === "/radar/donor"
-                        ? "bg-white dark:bg-slate-800 text-primary shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                    }`}
-                  >
-                    Mode Pendonor
-                  </button>
-                  <button
-                    onClick={() => router.push("/radar/seeker")}
-                    className={`px-3.5 py-1.5 rounded-full font-bold text-xs transition-all ${
-                      pathname === "/radar/seeker"
-                        ? "bg-white dark:bg-slate-800 text-primary shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                    }`}
-                  >
-                    Mode Pemohon
-                  </button>
-                </div>
-              )}
 
 
               {/* Notification Center */}
@@ -506,33 +434,7 @@ export default function Navbar() {
               </button>
             </div>
 
-            {/* Mobile Mode Switcher Toggle for Radar pages */}
-            {pathname.startsWith("/radar") && (
-              <div className="px-1 py-1">
-                <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50">
-                  <button
-                    onClick={() => { router.push("/radar/donor"); setIsMobileMenuOpen(false); }}
-                    className={`flex-1 py-2 rounded-lg font-bold text-xs text-center transition-all ${
-                      pathname === "/radar/donor"
-                        ? "bg-white dark:bg-slate-800 text-primary shadow-sm"
-                        : "text-slate-550 dark:text-slate-400"
-                    }`}
-                  >
-                    Mode Pendonor
-                  </button>
-                  <button
-                    onClick={() => { router.push("/radar/seeker"); setIsMobileMenuOpen(false); }}
-                    className={`flex-1 py-2 rounded-lg font-bold text-xs text-center transition-all ${
-                      pathname === "/radar/seeker"
-                        ? "bg-white dark:bg-slate-800 text-primary shadow-sm"
-                        : "text-slate-550 dark:text-slate-400"
-                    }`}
-                  >
-                    Mode Pemohon
-                  </button>
-                </div>
-              </div>
-            )}
+
 
             {/* Mobile notification dropdown area inside drawer */}
             {isNotificationOpen && (

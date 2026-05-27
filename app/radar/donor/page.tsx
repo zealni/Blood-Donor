@@ -164,6 +164,61 @@ export default function DonorDashboard() {
               Menampilkan {requests.length} pemohon di sekitar Anda.
             </p>
           </div>
+
+          {/* Segmented Mode Switcher & PMI DIY: SIAGA Widget */}
+          <div className="shrink-0 mb-5 space-y-3">
+            {/* Mode Switcher */}
+            <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 dark:bg-slate-950 rounded-2xl border border-slate-200/50 dark:border-slate-800/50">
+              <button
+                type="button"
+                className="py-2.5 rounded-xl text-xs font-black bg-white dark:bg-slate-800 text-primary shadow-sm transition-all"
+                onClick={() => router.push("/radar/donor")}
+              >
+                Mode Pendonor
+              </button>
+              <button
+                type="button"
+                className="py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 transition-all"
+                onClick={() => router.push("/radar/seeker")}
+              >
+                Mode Pemohon
+              </button>
+            </div>
+
+            {/* PMI DIY: SIAGA Widget */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-2xl">
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">PMI DIY: SIAGA</span>
+                </div>
+                <span className="text-[9px] text-slate-450 font-black px-2 py-0.5 bg-slate-200/50 dark:bg-slate-800 rounded-full leading-none">Stok Aktual</span>
+              </div>
+              
+              <div className="grid grid-cols-4 gap-2">
+                {[
+                  { type: "A", count: 45, status: "Cukup", color: "bg-emerald-500" },
+                  { type: "B", count: 28, status: "Menipis", color: "bg-amber-500" },
+                  { type: "O", count: 82, status: "Aman", color: "bg-emerald-500" },
+                  { type: "AB", count: 15, status: "Kritis", color: "bg-rose-500" },
+                ].map((stock) => (
+                  <div 
+                    key={stock.type} 
+                    className="py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 text-center flex flex-col justify-between items-center shadow-sm"
+                    title={`Stok ${stock.type}: ${stock.count} kantong (${stock.status})`}
+                  >
+                    <span className="text-xs font-black text-slate-800 dark:text-white leading-none">{stock.type}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${stock.color} my-1.5`} />
+                    <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 leading-none">{stock.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Unified Search & Filter Control Row */}
           <div className="flex gap-2 mb-4 shrink-0">
             <div className="relative flex-grow">

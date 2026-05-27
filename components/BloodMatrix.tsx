@@ -68,7 +68,7 @@ export default function BloodMatrix() {
   const selectedInfo = bloodCompatibilityData[selectedType];
 
   return (
-    <section id="blood-matrix" className="w-full py-24 bg-slate-50/50 dark:bg-slate-950/20 border-t border-slate-200 dark:border-slate-800/80 relative overflow-hidden">
+    <section id="blood-matrix" className="w-full pt-12 pb-24 bg-slate-50/50 dark:bg-slate-950/20 border-t border-slate-200 dark:border-slate-800/80 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 relative z-10">
         <div className="text-center max-w-2xl mx-auto mb-16">
           <span className="text-xs font-bold uppercase tracking-wider text-primary bg-primary/10 px-3.5 py-1.5 rounded-full">
@@ -82,10 +82,10 @@ export default function BloodMatrix() {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-5 gap-12 items-center">
+        <div className="grid lg:grid-cols-5 gap-12 items-stretch">
           {/* Left: Explanation and selected group info */}
-          <div className="lg:col-span-2 flex flex-col justify-center">
-            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl relative overflow-hidden">
+          <div className="lg:col-span-2 flex flex-col">
+            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl relative overflow-hidden h-full flex flex-col justify-between">
               {/* Decorative background droplet outline */}
               <Droplet className="absolute -bottom-10 -right-10 w-44 h-44 text-red-500/5 dark:text-red-500/5 stroke-[0.5]" />
               
@@ -144,8 +144,8 @@ export default function BloodMatrix() {
           </div>
 
           {/* Right: Grid of compatibility */}
-          <div className="lg:col-span-3">
-            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl">
+          <div className="lg:col-span-3 flex flex-col">
+            <div className="glass dark:bg-slate-900/60 p-8 rounded-[2.5rem] border border-slate-200/60 dark:border-slate-800 shadow-xl h-full flex flex-col justify-between">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="font-extrabold text-base md:text-lg text-slate-800 dark:text-slate-200">
                   Pilih Golongan Darah Anda
