@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  mcp-server:
+    build: ./mcp-server
+    image: local/mcp-server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - MCP_AUTH_TOKEN=changeme
+    restart: unless-stopped
