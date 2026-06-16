@@ -408,6 +408,8 @@ export default function MapComponent({
 
   // Fetch signals from Supabase
   useEffect(() => {
+    if (!supabase) return;
+
     async function fetchSignals() {
       try {
         const { data: seekersData, error: seekersErr } = await supabase

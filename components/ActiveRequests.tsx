@@ -287,6 +287,10 @@ export default function ActiveRequests({ onCTA }: ActiveRequestsProps) {
   // Fetch open blood requests from Supabase
   useEffect(() => {
     const supabase = createClient();
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
     
     async function loadRequests() {
       try {
