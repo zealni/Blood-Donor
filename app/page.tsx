@@ -8,11 +8,14 @@ import { createClient } from "@/lib/supabase/client";
 import Navbar from "@/components/Navbar";
 import LiveSignalMap from "@/components/LiveSignalMap";
 import ActiveRequests from "@/components/ActiveRequests";
-import HowItWorks from "@/components/HowItWorks";
-import BloodMatrix from "@/components/BloodMatrix";
-import ImpactCalculator from "@/components/ImpactCalculator";
-import FaqSection from "@/components/FaqSection";
 import Footer from "@/components/Footer";
+import dynamic from "next/dynamic";
+
+// Optimize landing page initial load bundle size by dynamically lazy-loading below-the-fold components
+const HowItWorks = dynamic(() => import("@/components/HowItWorks"));
+const BloodMatrix = dynamic(() => import("@/components/BloodMatrix"));
+const ImpactCalculator = dynamic(() => import("@/components/ImpactCalculator"));
+const FaqSection = dynamic(() => import("@/components/FaqSection"));
 
 interface UserSession {
   email: string;

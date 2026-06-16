@@ -43,6 +43,7 @@ export interface RequestSignal {
   bloodType: string;
   urgency: string;
   time: string;
+  rawTime?: string;
   requesterId: string;
   phone: string;
   bagsNeeded: number;

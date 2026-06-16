@@ -1,0 +1,101 @@
+- generic [ref=e2]:
+  - img [ref=e5]
+  - banner [ref=e6]:
+    - navigation [ref=e7]:
+      - link "Kemenkes Logo" [ref=e8] [cursor=pointer]:
+        - /url: https://rs.kemkes.go.id/
+        - img "Kemenkes Logo" [ref=e9]
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - button "Dokter" [ref=e12] [cursor=pointer]:
+            - generic [ref=e13]: Dokter
+            - img [ref=e14]
+          - button "Rumah Sakit" [ref=e16] [cursor=pointer]:
+            - generic [ref=e17]: Rumah Sakit
+            - img [ref=e18]
+        - button "Search" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+    - generic [ref=e26]:
+      - img [ref=e27]
+      - textbox "Cari dokter, rumah sakit, atau tenaga medis" [ref=e30]
+      - button "Close Search" [ref=e31] [cursor=pointer]:
+        - img [ref=e32]
+  - generic [ref=e35]:
+    - navigation "breadcrumb" [ref=e38]:
+      - list [ref=e39]:
+        - listitem [ref=e40]:
+          - link "Beranda" [ref=e41] [cursor=pointer]:
+            - /url: /
+        - listitem [ref=e42]:
+          - img [ref=e43]
+        - listitem [ref=e45]:
+          - link "Rumah Sakit" [disabled] [ref=e46]
+    - generic [ref=e47]:
+      - heading "Temukan Rumah Sakit Kemenkes di Indonesia" [level=1] [ref=e49]
+      - generic [ref=e50]:
+        - generic [ref=e54]:
+          - img "Not Found" [ref=e55]
+          - heading "Maaf, tidak ada hasil rumah sakit yang ditemukan" [level=2] [ref=e56]
+          - paragraph [ref=e57]: Silakan coba kata kunci lain atau kembali ke beranda.
+          - link "Kembali ke Beranda" [ref=e58] [cursor=pointer]:
+            - /url: https://rs.kemkes.go.id/
+            - button "Kembali ke Beranda" [ref=e59]
+        - generic [ref=e62]:
+          - generic [ref=e64]:
+            - img
+            - searchbox "Cari rumah sakit atau fasilitas kesehatan" [ref=e65]
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - heading "Filter" [level=3] [ref=e68]
+              - button "Reset" [ref=e69] [cursor=pointer]
+            - generic [ref=e70]:
+              - generic [ref=e71]:
+                - generic [ref=e72]: Lokasi
+                - button "Location" [disabled] [ref=e73]:
+                  - img "Location" [ref=e74]
+                  - img [ref=e77]
+              - generic [ref=e79]:
+                - generic [ref=e80]: Spesialisasi
+                - button "Specialization" [disabled] [ref=e81]:
+                  - img "Specialization" [ref=e82]
+                  - img [ref=e85]
+  - contentinfo [ref=e87]:
+    - generic [ref=e89]:
+      - generic [ref=e90]:
+        - img "Kemenkes Logo" [ref=e93]
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - paragraph [ref=e96]: Connect with Us
+            - generic [ref=e97]:
+              - button "facebook" [ref=e98] [cursor=pointer]:
+                - link "facebook" [ref=e99]:
+                  - /url: https://www.facebook.com/KementerianKesehatanRI/
+                  - img "facebook" [ref=e100]
+              - button "x" [ref=e101] [cursor=pointer]:
+                - link "x" [ref=e102]:
+                  - /url: https://x.com/KemenkesRI
+                  - img "x" [ref=e103]
+              - button "instagram" [ref=e104] [cursor=pointer]:
+                - link "instagram" [ref=e105]:
+                  - /url: https://www.instagram.com/kemenkes_ri/?hl=en
+                  - img "instagram" [ref=e106]
+              - button "youtube" [ref=e107] [cursor=pointer]:
+                - link "youtube" [ref=e108]:
+                  - /url: https://www.youtube.com/c/kementeriankesehatanri
+                  - img "youtube" [ref=e109]
+          - generic [ref=e110]:
+            - paragraph [ref=e111]: Unduh Aplikasi SATUSEHAT Mobile
+            - generic [ref=e112]:
+              - link "Google Play Logo" [ref=e113] [cursor=pointer]:
+                - /url: https://play.google.com/store/apps/details?id=com.telkom.tracencare&pcampaignid=web_share
+                - img "Google Play Logo" [ref=e114]
+              - link "Apple Logo" [ref=e115] [cursor=pointer]:
+                - /url: https://apps.apple.com/us/app/satusehat-mobile/id1504600374
+                - img "Apple Logo" [ref=e116]
+      - generic [ref=e117]:
+        - paragraph [ref=e119]: © 2026 Site by Kemenkes • All Rights Reserved
+        - generic [ref=e120]:
+          - link "Syarat Penggunaan" [ref=e121] [cursor=pointer]:
+            - /url: https://rs.kemkes.go.id/terms-of-use
+          - link "Perlindungan dan Privasi Data" [ref=e122] [cursor=pointer]:
+            - /url: https://rs.kemkes.go.id/terms-and-conditions

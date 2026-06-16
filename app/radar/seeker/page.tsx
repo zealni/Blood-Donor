@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Send, MapPin, Activity, AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -40,6 +40,50 @@ export default function SeekerDashboard() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [userProvince, setUserProvince] = useState("DIY");
   const [hospitalCoords, setHospitalCoords] = useState<[number, number] | null>(null);
+
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+
+  const selectedHospitalRef = useRef("");
+
+  useEffect(() => {
+    if (!hospital || hospital.trim() === "" || hospital.startsWith("Titik Terpilih")) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    // Skip fetch if current input matches the previously selected suggestion or snap
+    if (hospital === selectedHospitalRef.current) {
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setIsLoadingSuggestions(true);
+      try {
+        const res = await fetch(`/api/hospitals?q=${encodeURIComponent(hospital)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(data);
+          setShowSuggestions(data.length > 0);
+        }
+      } catch (err) {
+        console.error("Error fetching suggestions:", err);
+      } finally {
+        setIsLoadingSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [hospital]);
+
+  const handleSelectSuggestion = (item: any) => {
+    selectedHospitalRef.current = item.nama;
+    setHospital(item.nama);
+    setHospitalCoords([item.latitude, item.longitude]);
+    setShowSuggestions(false);
+  };
 
   useEffect(() => {
     const detectProvince = () => {
@@ -94,10 +138,19 @@ export default function SeekerDashboard() {
     }
   }, [router]);
 
-  const handleMapClick = (lat: number, lng: number) => {
-    setHospitalCoords([lat, lng]);
-    if (!hospital) {
-      setHospital(`Titik Terpilih (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+  const handleMapClick = async (lat: number, lng: number) => {
+    try {
+      const res = await fetch(`/api/hospitals?lat=${lat}&lng=${lng}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.nama) {
+          selectedHospitalRef.current = data.nama;
+          setHospital(data.nama);
+          setHospitalCoords([data.latitude, data.longitude]);
+        }
+      }
+    } catch (e) {
+      console.error("Error snapping seeker map click to nearest hospital:", e);
     }
   };
 
@@ -307,11 +360,39 @@ export default function SeekerDashboard() {
                   type="text"
                   value={hospital}
                   onChange={(e) => setHospital(e.target.value)}
+                  onFocus={() => {
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                   placeholder={
                     language === "en" ? "Type Hospital Name..." : "Ketik Nama Rumah Sakit..."
                   }
                   className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
                 />
+                
+                {/* Suggestions Dropdown */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
+                    {suggestions.map((item) => (
+                      <button
+                        key={item.kode_rs}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(item)}
+                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col gap-0.5"
+                      >
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">
+                          {item.nama}
+                        </span>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium line-clamp-1">
+                          {item.alamat || item.wilayah}
+                        </span>
+                        <span className="text-[9px] text-primary/80 dark:text-rose-400 font-semibold uppercase tracking-wider mt-0.5">
+                          {item.wilayah}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-xl">

@@ -1,0 +1,6 @@
+- generic [ref=e2]:
+  - heading "Retest OK" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Playwright MCP can still navigate and inspect the page.
+  - generic [ref=e5]:
+    - checkbox "browser control active" [checked] [ref=e6]
+    - text: browser control active

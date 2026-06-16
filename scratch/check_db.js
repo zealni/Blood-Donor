@@ -1,34 +1,37 @@
-const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
 
-const env = fs.readFileSync('.env.local', 'utf-8');
-const envVars = {};
-env.split('\n').forEach(line => {
-  const parts = line.split('=');
-  if (parts.length === 2) {
-    envVars[parts[0].trim()] = parts[1].trim();
-  }
-});
-
-const supabaseUrl = envVars.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = envVars.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
+const supabaseUrl = 'https://xavjrmgfsxmpocyfmsog.supabase.co';
+const supabaseKey = 'sb_publishable_HnvtRIH6XHtQNFzFcvF_HA_0Wy_czFq';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function run() {
-  const tableNames = ['blood_stock', 'blood_stocks', 'pmi_stock', 'pmi_stocks', 'pmi_blood_stock', 'pmi_blood_stocks', 'stocks', 'stock'];
-  for (const name of tableNames) {
-    try {
-      const { data, error } = await supabase.from(name).select('*').limit(1);
-      if (error) {
-        console.log(`Table '${name}' error:`, error.message);
-      } else {
-        console.log(`Table '${name}' EXISTS! Data:`, data);
-      }
-    } catch (e) {
-      console.log(`Table '${name}' threw exception:`, e.message);
-    }
+async function check() {
+  console.log('Querying blood_requests...');
+  const { data: requests, error: reqErr } = await supabase
+    .from('blood_requests')
+    .select('id, hospital_name, status, hospital_coord');
+  
+  if (reqErr) {
+    console.error('Error fetching requests:', reqErr.message);
+  } else {
+    console.log(`Found ${requests.length} total blood requests:`);
+    requests.forEach(r => {
+      console.log(`- [${r.status}] ${r.hospital_name} (coords: ${JSON.stringify(r.hospital_coord)})`);
+    });
+  }
+
+  console.log('\nQuerying profiles...');
+  const { data: profiles, error: profErr } = await supabase
+    .from('profiles')
+    .select('id, full_name, is_available, location');
+
+  if (profErr) {
+    console.error('Error fetching profiles:', profErr.message);
+  } else {
+    console.log(`Found ${profiles.length} total profiles:`);
+    profiles.forEach(p => {
+      console.log(`- [avail: ${p.is_available}] ${p.full_name} (location: ${JSON.stringify(p.location)})`);
+    });
   }
 }
 
-run();
+check();

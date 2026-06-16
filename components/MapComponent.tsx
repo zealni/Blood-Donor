@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check, Map, Globe, Heart, Phone } from 'lucide-react';
+import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check, Map as MapIcon, Globe, Heart, Phone } from 'lucide-react';
 import { useLanguage } from './LanguageProvider';
 import { createClient } from '../lib/supabase/client';
 import { 
@@ -45,7 +45,27 @@ const createCustomIcon = (type: 'seeker' | 'donor' | 'user' | 'selected') => {
 const seekerIcon = createCustomIcon('seeker');
 const donorIcon = createCustomIcon('donor');
 const userIcon = createCustomIcon('user');
-const selectedIcon = createCustomIcon('selected');
+const selectedIcon = L.divIcon({
+  className: 'custom-leaflet-icon',
+  html: `
+    <div style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
+      <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: #f59e0b;"></span>
+      <div style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: #ffffff; border: 2.5px solid #f59e0b; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 6V2"/>
+          <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+          <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+          <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+          <path d="M16 14H8"/>
+          <path d="M12 10v8"/>
+        </svg>
+      </div>
+    </div>
+  `,
+  iconSize: [42, 42],
+  iconAnchor: [21, 21],
+  popupAnchor: [0, -21],
+});
 
 const DEFAULT_CENTER: [number, number] = [-7.775, 110.380];
 
@@ -154,7 +174,13 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
 }
 
 // Leaflet click handler component for interactive location pinning and saving last dragged location
-function MapEventsHandler({ onMapClick }: { onMapClick?: (lat: number, lng: number) => void }) {
+function MapEventsHandler({ 
+  onMapClick,
+  onMapMove
+}: { 
+  onMapClick?: (lat: number, lng: number) => void;
+  onMapMove?: (lat: number, lng: number, zoom: number) => void;
+}) {
   useMapEvents({
     click(e) {
       if (onMapClick) {
@@ -162,8 +188,11 @@ function MapEventsHandler({ onMapClick }: { onMapClick?: (lat: number, lng: numb
       }
     },
     moveend(e) {
-      // Save last map position to local storage when user stops dragging
       const center = e.target.getCenter();
+      const zoom = e.target.getZoom();
+      if (onMapMove) {
+        onMapMove(center.lat, center.lng, zoom);
+      }
       if (typeof window !== "undefined") {
         window.localStorage.setItem("last_map_center", JSON.stringify([center.lat, center.lng]));
       }
@@ -188,6 +217,7 @@ interface MapComponentProps {
   externalFilterBloodType?: string;
   externalFilterUrgency?: string;
   onSignalsUpdate?: (signals: any[]) => void;
+  onHospitalSelect?: (hospitalName: string | null) => void; // Filter list on map pin click
 }
 
 export default function MapComponent({
@@ -203,15 +233,46 @@ export default function MapComponent({
   onSearchQueryChange,
   externalFilterBloodType = "all",
   externalFilterUrgency = "all",
-  onSignalsUpdate
+  onSignalsUpdate,
+  onHospitalSelect
 }: MapComponentProps) {
   const { language } = useLanguage();
   const [center, setCenter] = useState<[number, number]>(() => getInitialCenter());
   const [zoom, setZoom] = useState(13);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(() => getInitialCenter());
+  const [mapZoom, setMapZoom] = useState(13);
   const [hasUserLocation, setHasUserLocation] = useState(false);
   const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
   const [dbSignals, setDbSignals] = useState<any[]>([]);
+  const [allHospitals, setAllHospitals] = useState<any[]>([]);
+
+  // Sync viewport center with search center changes (geolocation / highlight)
+  useEffect(() => {
+    setMapCenter(center);
+  }, [center]);
+
+  useEffect(() => {
+    setMapZoom(zoom);
+  }, [zoom]);
   const supabase = createClient();
+  
+  // Load all 2,920 hospitals from API on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadHospitals() {
+      try {
+        const res = await fetch('/api/hospitals?all=true');
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setAllHospitals(data);
+        }
+      } catch (err) {
+        console.error("Error loading all hospitals in MapComponent:", err);
+      }
+    }
+    loadHospitals();
+    return () => { isMounted = false; };
+  }, []);
   
   // Local state fallbacks for standalone usage
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -547,6 +608,115 @@ export default function MapComponent({
     });
   }, [allSignals, externalFilterBloodType, externalFilterUrgency, activeRadius, activeSearchQuery, center]);
 
+  // Group active signals by hospital name and match them against the 2,920 real hospitals
+  const activeHospitalsMap = useMemo<any[]>(() => {
+    const list = preview ? allSignals : filteredSignals;
+
+    if (allHospitals.length === 0) {
+      const seekers = list.filter(s => s.type === 'seeker');
+      const groups: Record<string, any> = {};
+      seekers.forEach(s => {
+        const name = s.location;
+        if (!groups[name]) {
+          groups[name] = {
+            hospitalName: name,
+            position: s.position,
+            requests: []
+          };
+        }
+        groups[name].requests.push(s);
+      });
+      return Object.values(groups).map(g => ({
+        nama: g.hospitalName,
+        latitude: g.position[0],
+        longitude: g.position[1],
+        seekers: g.requests,
+        donors: []
+      }));
+    }
+
+    // 1. Build a spatial grid of hospitals for fast O(1) snapping
+    const CELL_SIZE = 0.001; // ~110m grid cell size
+    const getCellKey = (lat: number, lng: number) => {
+      const cx = Math.floor(lat / CELL_SIZE);
+      const cy = Math.floor(lng / CELL_SIZE);
+      return `${cx}_${cy}`;
+    };
+
+    const hospitalGrid = new Map<string, any[]>();
+    allHospitals.forEach(h => {
+      const key = getCellKey(h.latitude, h.longitude);
+      if (!hospitalGrid.has(key)) {
+        hospitalGrid.set(key, []);
+      }
+      hospitalGrid.get(key)!.push(h);
+    });
+
+    const findHospitalForSignal = (sLat: number, sLng: number) => {
+      const cx = Math.floor(sLat / CELL_SIZE);
+      const cy = Math.floor(sLng / CELL_SIZE);
+      
+      // Check 9 neighboring cells (the cell itself and its 8 neighbors)
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const key = `${cx + dx}_${cy + dy}`;
+          const cellHospitals = hospitalGrid.get(key);
+          if (cellHospitals) {
+            for (const h of cellHospitals) {
+              if (Math.abs(sLat - h.latitude) < 0.0001 && Math.abs(sLng - h.longitude) < 0.0001) {
+                return h;
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    // 2. Group SEEKERS ONLY by matching hospital (donors are free-roaming, rendered separately)
+    const activeMap = new Map<string, any>();
+    
+    const seekersOnly = list.filter(s => s.type === 'seeker');
+    seekersOnly.forEach(s => {
+      const h = findHospitalForSignal(s.lat, s.lng);
+      if (h) {
+        const key = h.kode_rs || h.nama;
+        if (!activeMap.has(key)) {
+          activeMap.set(key, {
+            ...h,
+            seekers: [],
+            donors: [] // kept for popup compatibility
+          });
+        }
+        activeMap.get(key)!.seekers.push(s);
+      }
+    });
+
+    return Array.from(activeMap.values());
+  }, [allHospitals, filteredSignals, allSignals, preview]);
+
+  // Free-roaming donors — rendered independently, NOT snapped to any hospital
+  const activeDonors = useMemo(() => {
+    const list = preview ? allSignals : filteredSignals;
+    return list.filter(s => s.type === 'donor');
+  }, [filteredSignals, allSignals, preview]);
+
+  // Compute nearby inactive hospitals to show on zoom
+  const inactiveHospitals = useMemo(() => {
+    if (mapZoom < 12 || allHospitals.length === 0) return [];
+    
+    const activeKeys = new Set(activeHospitalsMap.map(ah => ah.kode_rs || ah.nama));
+    
+    // Show inactive hospitals within ~25km of current map viewport center
+    return allHospitals.filter(h => {
+      const d = Math.pow(h.latitude - mapCenter[0], 2) + Math.pow(h.longitude - mapCenter[1], 2);
+      if (d > 0.05) return false;
+      
+      const key = h.kode_rs || h.nama;
+      return !activeKeys.has(key);
+    });
+  }, [allHospitals, activeHospitalsMap, mapCenter, mapZoom]);
+
   // Synchronize filtered seeker signals back to the parent sidebar component dynamically
   useEffect(() => {
     if (preview || !onSignalsUpdate) return;
@@ -574,6 +744,7 @@ export default function MapComponent({
           bloodType: s.bloodType,
           urgency: s.urgency,
           time: getTimeAgo(s.time_ago, language),
+          rawTime: s.time_ago,
           requesterId: `user-${s.id}`,
           phone: s.phone || "6281122334450",
           bagsNeeded: s.bags_needed || 2
@@ -616,7 +787,7 @@ export default function MapComponent({
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <Map className="w-3.5 h-3.5" />
+              <MapIcon className="w-3.5 h-3.5" />
               <span>Jalan</span>
             </button>
             <button
@@ -646,6 +817,7 @@ export default function MapComponent({
       )}
 
       <MapContainer 
+        preferCanvas={true}
         center={center} 
         zoom={zoom} 
         style={{ width: '100%', height: '100%' }}
@@ -659,7 +831,13 @@ export default function MapComponent({
         
         {/* Click events handler for positioning hospital pin and saving last drag */}
         {!preview && (
-          <MapEventsHandler onMapClick={onMapClick} />
+          <MapEventsHandler 
+            onMapClick={onMapClick} 
+            onMapMove={(lat, lng, z) => {
+              setMapCenter([lat, lng]);
+              setMapZoom(z);
+            }}
+          />
         )}
         
         {mapMode === 'streets' ? (
@@ -735,56 +913,234 @@ export default function MapComponent({
           </Marker>
         )}
         
-        {/* Render filtered markers */}
-        {/* If in preview mode, show all signals (no filters applied) */}
-        {(preview ? allSignals : filteredSignals).map((signal) => (
-          <Marker 
-            key={signal.id} 
-            position={signal.position as [number, number]} 
-            icon={signal.type === 'seeker' ? seekerIcon : donorIcon}
-          >
-            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-              <div className="font-sans px-1 py-1 min-w-[150px]">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
-                  {signal.type === "seeker" ? "🔴 Pemohon" : "🟢 Pendonor"}
+        {/* Render grouped active hospital markers (seekers & donors) */}
+        {activeHospitalsMap
+          .filter(h => {
+            const d = Math.pow(h.latitude - mapCenter[0], 2) + Math.pow(h.longitude - mapCenter[1], 2);
+            if (mapZoom < 8) return true;                       // Show all at low zoom levels (< 8) on canvas
+            if (mapZoom >= 11) return d < 0.04;                  // ~22km limit
+            if (mapZoom >= 10) return d < 0.12;                  // ~38km limit
+            if (mapZoom >= 9) return d < 0.45;                   // ~74km limit
+            return d < 1.8;                                      // ~150km limit at zoom 8
+          })
+          .map((h) => {
+            const seekerCount = h.seekers?.length || 0;
+            const donorCount = h.donors?.length || 0;
+            const isRed = seekerCount > 0;
+            const color = isRed ? '#ef4444' : '#10b981';
+
+            const popupContent = (
+              <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+                <div className="font-sans px-1 py-1 min-w-[180px]">
+                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
+                    <span>🏥 Rumah Sakit</span>
+                    {seekerCount > 0 && <span className="text-rose-500 font-extrabold">(Ada Pemohon)</span>}
+                    {seekerCount === 0 && donorCount > 0 && <span className="text-emerald-500 font-extrabold">(Ada Pendonor)</span>}
+                  </div>
+                  <div className="font-black text-sm text-slate-900 leading-tight">{h.nama}</div>
+                  <div className="text-[10px] text-slate-500 mt-1.5 font-bold space-y-0.5">
+                    {seekerCount > 0 && <div>🔴 {seekerCount} Pemohon Darah Aktif</div>}
+                    {donorCount > 0 && <div>🟢 {donorCount} Pendonor Siaga</div>}
+                  </div>
+                  
+                  {seekerCount > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1">
+                      {h.seekers.map((r: any, idx: number) => (
+                        <span key={idx} className="px-1.5 py-0.5 bg-rose-50 text-rose-700 text-[9px] font-bold rounded-md border border-rose-100">
+                          {r.bloodType} ({r.urgency})
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-[8px] text-slate-400 mt-2.5 font-semibold italic">
+                    *Klik untuk melihat daftar lengkap di panel kiri.
+                  </p>
                 </div>
-                <div className="font-black text-2xl text-slate-900">{signal.bloodType}</div>
-                <div className="font-semibold text-sm text-slate-700 mt-1 leading-tight">{signal.location}</div>
-                <div className={`inline-block px-2 py-1 rounded-full text-[10px] font-bold mt-2 mb-3 ${
-                  signal.urgency === 'Kritis' ? 'bg-red-100 text-red-700' : 
-                  signal.urgency === 'Tinggi' ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'
-                }`}>
-                  {signal.type === "seeker" ? `Urgensi: ${signal.urgency}` : 'Siaga Pendonor'}
-                </div>
-                
-                <button
-                  type="button"
-                  className={`w-full py-2 rounded-xl text-xs font-bold text-white transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-1.5 shadow-md ${
-                    signal.type === "seeker" 
-                      ? "bg-rose-500 hover:bg-rose-600 shadow-rose-500/30" 
-                      : "bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/30"
-                  }`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    alert(signal.type === "seeker" ? "Fitur Bantu Pemohon akan dihubungkan ke WhatsApp/Sistem!" : "Fitur Hubungi Pendonor akan dihubungkan ke WhatsApp!");
+              </Popup>
+            );
+
+            if (mapZoom < 11) {
+              const radiusSize = mapZoom < 8 ? 3.5 : 6;
+              return (
+                <CircleMarker
+                  key={h.kode_rs || h.nama}
+                  center={[h.latitude, h.longitude]}
+                  radius={radiusSize}
+                  pathOptions={{
+                    fillColor: color,
+                    color: '#ffffff',
+                    weight: 1.5,
+                    fillOpacity: 1
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      if (onHospitalSelect) {
+                        onHospitalSelect(h.nama);
+                      }
+                    }
                   }}
                 >
-                  {signal.type === "seeker" ? (
-                    <>
-                      <Heart className="w-3.5 h-3.5" />
-                      <span>Bantu Sekarang</span>
-                    </>
-                  ) : (
-                    <>
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>Hubungi</span>
-                    </>
-                  )}
-                </button>
+                  {popupContent}
+                </CircleMarker>
+              );
+            }
+
+            // High Zoom: Full premium pulsing 42px hospital building SVG icon
+            const hospitalMarkerIcon = L.divIcon({
+              className: 'custom-leaflet-icon',
+              html: `
+                <div style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
+                  <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: ${color};"></span>
+                  <div style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: #ffffff; border: 2.5px solid ${color}; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; transition: all 0.2s ease-in-out;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 6V2"/>
+                      <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                      <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                      <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                      <path d="M16 14H8"/>
+                      <path d="M12 10v8"/>
+                    </svg>
+                  </div>
+                  ${seekerCount > 0 ? `
+                    <span style="position: absolute; top: -2px; right: -2px; background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 1px 4.5px; border-radius: 9999px; border: 1.5px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+                      ${seekerCount}
+                    </span>
+                  ` : ''}
+                </div>
+              `,
+              iconSize: [42, 42],
+              iconAnchor: [21, 21],
+              popupAnchor: [0, -21],
+            });
+
+            return (
+              <Marker
+                key={h.kode_rs || h.nama}
+                position={[h.latitude, h.longitude]}
+                icon={hospitalMarkerIcon}
+                eventHandlers={{
+                  click: () => {
+                    if (onHospitalSelect) {
+                      onHospitalSelect(h.nama);
+                    }
+                  }
+                }}
+              >
+                {popupContent}
+              </Marker>
+            );
+          })}
+
+        {/* Free-roaming Donor markers — independent of hospitals */}
+        {activeDonors
+          .filter(d => {
+            const dist2 = Math.pow(d.lat - mapCenter[0], 2) + Math.pow(d.lng - mapCenter[1], 2);
+            if (mapZoom < 8) return true;
+            if (mapZoom >= 11) return dist2 < 0.04;
+            if (mapZoom >= 10) return dist2 < 0.12;
+            if (mapZoom >= 9) return dist2 < 0.45;
+            return dist2 < 1.8;
+          })
+          .map(d => {
+            if (mapZoom < 11) {
+              const r = mapZoom < 8 ? 3.5 : 6;
+              return (
+                <CircleMarker
+                  key={d.id}
+                  center={[d.lat, d.lng]}
+                  radius={r}
+                  pathOptions={{
+                    fillColor: '#10b981',
+                    color: '#ffffff',
+                    weight: 1.5,
+                    fillOpacity: 1
+                  }}
+                >
+                  <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+                    <div className="font-sans px-1 py-1 min-w-[160px]">
+                      <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 mb-1">🟢 Pendonor Siaga</div>
+                      <div className="font-black text-sm text-slate-900">{d.bloodType}</div>
+                      <div className="text-[9px] text-slate-400 mt-1">{d.location}</div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            }
+            return (
+              <Marker
+                key={d.id}
+                position={[d.lat, d.lng]}
+                icon={donorIcon}
+              >
+                <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+                  <div className="font-sans px-1 py-1 min-w-[160px]">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 mb-1">🟢 Pendonor Siaga</div>
+                    <div className="font-black text-sm text-slate-900">{d.bloodType}</div>
+                    <div className="text-[9px] text-slate-400 mt-0.5 font-semibold">{d.location}</div>
+                    {d.time_ago && (
+                      <div className="text-[8px] text-slate-400 mt-1">{getTimeAgo(d.time_ago, language)}</div>
+                    )}
+                  </div>
+                </Popup>
+              </Marker>
+            );
+          })
+        }
+
+        {/* Render nearby inactive hospitals when zoomed in */}
+        {inactiveHospitals.map((h) => {
+          const inactiveIcon = L.divIcon({
+            className: 'inactive-leaflet-icon',
+            html: `
+              <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+                <div style="position: relative; width: 18px; height: 18px; border-radius: 50%; background-color: #ffffff; border: 1.5px solid #94a3b8; box-shadow: 0 1.5px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 6V2"/>
+                    <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                    <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                    <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                    <path d="M16 14H8"/>
+                    <path d="M12 10v8"/>
+                  </svg>
+                </div>
               </div>
-            </Popup>
-          </Marker>
-        ))}
+            `,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+            popupAnchor: [0, -12],
+          });
+
+          return (
+            <Marker
+              key={h.kode_rs}
+              position={[h.latitude, h.longitude]}
+              icon={inactiveIcon}
+              eventHandlers={{
+                click: () => {
+                  // Allow selecting the hospital even if it's inactive (so seekers/donors can set their location by clicking)
+                  if (onMapClick) {
+                    onMapClick(h.latitude, h.longitude);
+                  }
+                }
+              }}
+            >
+              <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+                <div className="font-sans px-1 py-1 max-w-[180px]">
+                  <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                    🏥 Rumah Sakit (Siaga)
+                  </div>
+                  <div className="font-bold text-xs text-slate-800 leading-tight mb-1">{h.nama}</div>
+                  <div className="text-[9px] text-slate-400 font-semibold truncate">{h.alamat}</div>
+                  <div className="text-[9px] text-slate-400 font-extrabold uppercase mt-1">{h.wilayah}</div>
+                  <div className="text-[8px] text-slate-500 font-bold mt-2">
+                    *Belum ada aktivitas sinyal di sini.
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
       
       {!preview && (

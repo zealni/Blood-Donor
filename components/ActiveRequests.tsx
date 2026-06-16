@@ -359,12 +359,25 @@ export default function ActiveRequests({ onCTA }: ActiveRequestsProps) {
     });
   }, [mappedRequests, selectedRegionObj]);
 
+  // Precalculate counts of active requests for all provinces for O(1) render lookups
+  const provinceCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    PROVINCES.forEach(prov => {
+      let count = 0;
+      mappedRequests.forEach(req => {
+        const hospital = req.hospitalName.toLowerCase();
+        if (prov.keywords.some(kw => hospital.includes(kw))) {
+          count++;
+        }
+      });
+      counts[prov.id] = count;
+    });
+    return counts;
+  }, [mappedRequests]);
+
   // Count active signals per province (in-memory for maximum performance)
   const getProvinceSignalCount = (province: RegionOption) => {
-    return mappedRequests.filter(req => {
-      const hospital = req.hospitalName.toLowerCase();
-      return province.keywords.some(kw => hospital.includes(kw));
-    }).length;
+    return provinceCounts[province.id] || 0;
   };
 
   // Order provinces dynamically: selected/active province at the top, others sorted alphabetically

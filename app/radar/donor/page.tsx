@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { HeartHandshake, Search, Filter, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -45,6 +45,9 @@ export default function DonorDashboard() {
   const [filterUrgency, setFilterUrgency] = useState("all");
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
 
+  const [selectedHospitalFilter, setSelectedHospitalFilter] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'distance' | 'urgency' | 'bags' | 'time'>('distance');
+
   // Province detection
   const [userProvince, setUserProvince] = useState("DIY");
 
@@ -54,6 +57,31 @@ export default function DonorDashboard() {
   const [isSelectingOnMap, setIsSelectingOnMap] = useState(false);
   const [broadcastBloodType, setBroadcastBloodType] = useState<string>("O");
   const [broadcastRhesus, setBroadcastRhesus] = useState<string>("+");
+  const [hospitalName, setHospitalName] = useState("");
+
+  // Resolve myCoords to hospital name for display
+  useEffect(() => {
+    if (!myCoords) {
+      setHospitalName("");
+      return;
+    }
+    let isMounted = true;
+    async function resolveCoords() {
+      try {
+        const res = await fetch(`/api/hospitals?lat=${myCoords![0]}&lng=${myCoords![1]}`);
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data && data.nama) {
+            setHospitalName(data.nama);
+          }
+        }
+      } catch (e) {
+        console.error("Error resolving donor coords:", e);
+      }
+    }
+    resolveCoords();
+    return () => { isMounted = false; };
+  }, [myCoords]);
 
   // Handshake modal
   const [handshakeReq, setHandshakeReq] = useState<RequestSignal | null>(null);
@@ -61,6 +89,40 @@ export default function DonorDashboard() {
 
   // Seeker requests from MapComponent
   const [requests, setRequests] = useState<RequestSignal[]>([]);
+
+  // Filter and sort requests in the sidebar based on selection & selected hospital
+  const processedRequests = useMemo(() => {
+    let list = [...requests];
+    
+    // 1. Filter by clicked hospital from map
+    if (selectedHospitalFilter) {
+      list = list.filter(r => r.hospital === selectedHospitalFilter);
+    }
+    
+    // 2. Sort by selected criteria
+    list.sort((a, b) => {
+      if (sortBy === 'distance') {
+        return (a.distanceNum || 0) - (b.distanceNum || 0);
+      }
+      if (sortBy === 'urgency') {
+        const urgencyWeight = { 'Kritis': 3, 'Tinggi': 2, 'Sedang': 1 };
+        const wA = urgencyWeight[a.urgency as 'Kritis' | 'Tinggi' | 'Sedang'] || 0;
+        const wB = urgencyWeight[b.urgency as 'Kritis' | 'Tinggi' | 'Sedang'] || 0;
+        return wB - wA;
+      }
+      if (sortBy === 'bags') {
+        return (b.bagsNeeded || 0) - (a.bagsNeeded || 0);
+      }
+      if (sortBy === 'time') {
+        const tA = new Date(a.rawTime || 0).getTime();
+        const tB = new Date(b.rawTime || 0).getTime();
+        return tB - tA;
+      }
+      return 0;
+    });
+    
+    return list;
+  }, [requests, selectedHospitalFilter, sortBy]);
 
   // ── Fetch own profile signal ──
   useEffect(() => {
@@ -270,15 +332,33 @@ export default function DonorDashboard() {
             externalFilterBloodType={filterBloodType}
             externalFilterUrgency={filterUrgency}
             onSignalsUpdate={setRequests}
+            onHospitalSelect={setSelectedHospitalFilter}
             onMapClick={
               isAvailable && isSelectingOnMap
-                ? (lat, lng) => updateMySignal(true, [lat, lng])
+                ? async (lat, lng) => {
+                    try {
+                      const res = await fetch(`/api/hospitals?lat=${lat}&lng=${lng}`);
+                      if (res.ok) {
+                        const hospital = await res.json();
+                        if (hospital) {
+                          updateMySignal(true, [hospital.latitude, hospital.longitude]);
+                        } else {
+                          updateMySignal(true, [lat, lng]);
+                        }
+                      } else {
+                        updateMySignal(true, [lat, lng]);
+                      }
+                    } catch (e) {
+                      console.error("Error snapping map click to nearest hospital:", e);
+                      updateMySignal(true, [lat, lng]);
+                    }
+                  }
                 : undefined
             }
             selectedHospitalPosition={isAvailable ? myCoords : null}
             selectedHospitalName={
               isAvailable
-                ? language === "en" ? "My Location" : "Lokasi Saya"
+                ? hospitalName || (language === "en" ? "My Location" : "Lokasi Saya")
                 : undefined
             }
           />
@@ -328,8 +408,8 @@ export default function DonorDashboard() {
             </h1>
             <p className="text-slate-400 text-xs mt-1">
               {language === "en"
-                ? `Showing ${requests.length} requester(s) near you.`
-                : `Menampilkan ${requests.length} pemohon di sekitar Anda.`}
+                ? `Showing ${processedRequests.length} requester(s) near you.`
+                : `Menampilkan ${processedRequests.length} pemohon di sekitar Anda.`}
             </p>
           </div>
 
@@ -396,10 +476,59 @@ export default function DonorDashboard() {
               />
             )}
 
+            {/* Sorting Row */}
+            <div className="space-y-1.5 shrink-0">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                {language === "en" ? "Sort By" : "Urutkan Berdasarkan"}
+              </span>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                {[
+                  { key: 'distance', labelId: 'Terdekat', labelEn: 'Nearest' },
+                  { key: 'urgency', labelId: 'Urgensi', labelEn: 'Urgency' },
+                  { key: 'bags', labelId: 'Kantong', labelEn: 'Bags Needed' },
+                  { key: 'time', labelId: 'Terbaru', labelEn: 'Newest' }
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setSortBy(opt.key as any)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold whitespace-nowrap transition-all border ${
+                      sortBy === opt.key
+                        ? 'bg-rose-500 border-transparent text-white shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-950/50 border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {language === 'en' ? opt.labelEn : opt.labelId}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Hospital Filter Banner */}
+            {selectedHospitalFilter && (
+              <div className="p-3.5 bg-rose-500/[0.04] dark:bg-rose-500/[0.02] border border-rose-500/10 rounded-2xl flex items-center justify-between shrink-0 animate-in fade-in duration-200">
+                <div className="min-w-0 pr-2">
+                  <span className="text-[8px] font-bold text-rose-500 dark:text-rose-450 uppercase tracking-wider block">
+                    {language === "en" ? "Filtering by Hospital" : "Menyaring Rumah Sakit"}
+                  </span>
+                  <span className="text-xs font-black text-slate-800 dark:text-slate-250 truncate block">
+                    {selectedHospitalFilter}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedHospitalFilter(null)}
+                  className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-440 rounded-lg text-[9px] font-black transition-colors shrink-0"
+                >
+                  {language === "en" ? "Clear" : "Bersihkan"}
+                </button>
+              </div>
+            )}
+
             {/* Signal cards list */}
             <div className="flex flex-col gap-4 pb-4">
-              {requests.length > 0 ? (
-                requests.map((req) => (
+              {processedRequests.length > 0 ? (
+                processedRequests.map((req: RequestSignal) => (
                   <DonorSignalCard
                     key={req.id}
                     request={req}
