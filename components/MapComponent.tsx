@@ -790,7 +790,7 @@ export default function MapComponent({
     : "left-6";
 
   return (
-    <div data-no-translate="true" className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0">
+    <div data-no-translate="true" className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0 will-change-transform">
       
       {!preview && (
         <>
@@ -842,12 +842,14 @@ export default function MapComponent({
         center={center} 
         zoom={zoom} 
         style={{ width: '100%', height: '100%' }}
-        className="z-0"
+        className="z-0 will-change-transform"
         zoomControl={false}
         dragging={!preview}
         scrollWheelZoom={!preview}
         doubleClickZoom={!preview}
         inertia={false}
+        zoomAnimation={false}
+        fadeAnimation={false}
       >
         <ChangeView center={center} zoom={zoom} />
         
