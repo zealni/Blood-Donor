@@ -67,6 +67,29 @@ const selectedIcon = L.divIcon({
   popupAnchor: [0, -21],
 });
 
+// Cached icon for inactive hospitals — created ONCE at module level, reused for every marker.
+// This prevents L.divIcon from being re-instantiated on every React render cycle.
+const INACTIVE_HOSPITAL_ICON = L.divIcon({
+  className: 'inactive-leaflet-icon',
+  html: `
+    <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+      <div style="position: relative; width: 18px; height: 18px; border-radius: 50%; background-color: #ffffff; border: 1.5px solid #94a3b8; box-shadow: 0 1.5px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 6V2"/>
+          <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+          <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+          <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+          <path d="M16 14H8"/>
+          <path d="M12 10v8"/>
+        </svg>
+      </div>
+    </div>
+  `,
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
+  popupAnchor: [0, -12],
+});
+
 const DEFAULT_CENTER: [number, number] = [-7.775, 110.380];
 
 const updateDetectedProvince = async (lat: number, lng: number) => {
@@ -244,7 +267,6 @@ export default function MapComponent({
   const [hasUserLocation, setHasUserLocation] = useState(false);
   const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
   const [dbSignals, setDbSignals] = useState<any[]>([]);
-  const [allHospitals, setAllHospitals] = useState<any[]>([]);
 
   // Sync viewport center with search center changes (geolocation / highlight)
   useEffect(() => {
@@ -256,23 +278,10 @@ export default function MapComponent({
   }, [zoom]);
   const supabase = createClient();
   
-  // Load all 2,920 hospitals from API on mount
-  useEffect(() => {
-    let isMounted = true;
-    async function loadHospitals() {
-      try {
-        const res = await fetch('/api/hospitals?all=true');
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          setAllHospitals(data);
-        }
-      } catch (err) {
-        console.error("Error loading all hospitals in MapComponent:", err);
-      }
-    }
-    loadHospitals();
-    return () => { isMounted = false; };
-  }, []);
+  // NOTE: We intentionally do NOT load all 2,920 hospitals on the client.
+  // Rendering hundreds of Leaflet divIcon markers simultaneously is the primary
+  // cause of map drag lag. Inactive hospitals are fetched on-demand by viewport
+  // only when the user is zoomed in to level 14+.
   
   // Local state fallbacks for standalone usage
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -608,92 +617,26 @@ export default function MapComponent({
     });
   }, [allSignals, externalFilterBloodType, externalFilterUrgency, activeRadius, activeSearchQuery, center]);
 
-  // Group active signals by hospital name and match them against the 2,920 real hospitals
+  // Group active signals by hospital name for rendering map markers
   const activeHospitalsMap = useMemo<any[]>(() => {
     const list = preview ? allSignals : filteredSignals;
-
-    if (allHospitals.length === 0) {
-      const seekers = list.filter(s => s.type === 'seeker');
-      const groups: Record<string, any> = {};
-      seekers.forEach(s => {
-        const name = s.location;
-        if (!groups[name]) {
-          groups[name] = {
-            hospitalName: name,
-            position: s.position,
-            requests: []
-          };
-        }
-        groups[name].requests.push(s);
-      });
-      return Object.values(groups).map(g => ({
-        nama: g.hospitalName,
-        latitude: g.position[0],
-        longitude: g.position[1],
-        seekers: g.requests,
-        donors: []
-      }));
-    }
-
-    // 1. Build a spatial grid of hospitals for fast O(1) snapping
-    const CELL_SIZE = 0.001; // ~110m grid cell size
-    const getCellKey = (lat: number, lng: number) => {
-      const cx = Math.floor(lat / CELL_SIZE);
-      const cy = Math.floor(lng / CELL_SIZE);
-      return `${cx}_${cy}`;
-    };
-
-    const hospitalGrid = new Map<string, any[]>();
-    allHospitals.forEach(h => {
-      const key = getCellKey(h.latitude, h.longitude);
-      if (!hospitalGrid.has(key)) {
-        hospitalGrid.set(key, []);
+    const seekers = list.filter(s => s.type === 'seeker');
+    const groups: Record<string, any> = {};
+    seekers.forEach(s => {
+      const name = s.location;
+      if (!groups[name]) {
+        groups[name] = {
+          nama: name,
+          latitude: s.position[0],
+          longitude: s.position[1],
+          seekers: [],
+          donors: []
+        };
       }
-      hospitalGrid.get(key)!.push(h);
+      groups[name].seekers.push(s);
     });
-
-    const findHospitalForSignal = (sLat: number, sLng: number) => {
-      const cx = Math.floor(sLat / CELL_SIZE);
-      const cy = Math.floor(sLng / CELL_SIZE);
-      
-      // Check 9 neighboring cells (the cell itself and its 8 neighbors)
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const key = `${cx + dx}_${cy + dy}`;
-          const cellHospitals = hospitalGrid.get(key);
-          if (cellHospitals) {
-            for (const h of cellHospitals) {
-              if (Math.abs(sLat - h.latitude) < 0.0001 && Math.abs(sLng - h.longitude) < 0.0001) {
-                return h;
-              }
-            }
-          }
-        }
-      }
-      return null;
-    };
-
-    // 2. Group SEEKERS ONLY by matching hospital (donors are free-roaming, rendered separately)
-    const activeMap = new Map<string, any>();
-    
-    const seekersOnly = list.filter(s => s.type === 'seeker');
-    seekersOnly.forEach(s => {
-      const h = findHospitalForSignal(s.lat, s.lng);
-      if (h) {
-        const key = h.kode_rs || h.nama;
-        if (!activeMap.has(key)) {
-          activeMap.set(key, {
-            ...h,
-            seekers: [],
-            donors: [] // kept for popup compatibility
-          });
-        }
-        activeMap.get(key)!.seekers.push(s);
-      }
-    });
-
-    return Array.from(activeMap.values());
-  }, [allHospitals, filteredSignals, allSignals, preview]);
+    return Object.values(groups);
+  }, [allSignals, filteredSignals, preview]);
 
   // Free-roaming donors — rendered independently, NOT snapped to any hospital
   const activeDonors = useMemo(() => {
@@ -701,21 +644,39 @@ export default function MapComponent({
     return list.filter(s => s.type === 'donor');
   }, [filteredSignals, allSignals, preview]);
 
-  // Compute nearby inactive hospitals to show on zoom
-  const inactiveHospitals = useMemo(() => {
-    if (mapZoom < 12 || allHospitals.length === 0) return [];
-    
-    const activeKeys = new Set(activeHospitalsMap.map(ah => ah.kode_rs || ah.nama));
-    
-    // Show inactive hospitals within ~25km of current map viewport center
-    return allHospitals.filter(h => {
-      const d = Math.pow(h.latitude - mapCenter[0], 2) + Math.pow(h.longitude - mapCenter[1], 2);
-      if (d > 0.05) return false;
-      
-      const key = h.kode_rs || h.nama;
-      return !activeKeys.has(key);
-    });
-  }, [allHospitals, activeHospitalsMap, mapCenter, mapZoom]);
+  // Fetch nearby inactive hospitals on-demand only when zoomed in (>=14)
+  // to avoid loading & rendering hundreds of DOM nodes at once.
+  const [inactiveHospitals, setInactiveHospitals] = useState<any[]>([]);
+  useEffect(() => {
+    if (mapZoom < 14) {
+      setInactiveHospitals([]);
+      return;
+    }
+    let isMounted = true;
+    async function fetchNearby() {
+      try {
+        // Fetch only hospitals near the current viewport center, limited by the server
+        const res = await fetch(
+          `/api/hospitals?lat=${mapCenter[0]}&lng=${mapCenter[1]}&nearby=true&limit=40`
+        );
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          // Filter out hospitals that already have active signals
+          const activeKeys = new Set(activeHospitalsMap.map((ah: any) => ah.kode_rs || ah.nama));
+          setInactiveHospitals(
+            (Array.isArray(data) ? data : []).filter(
+              (h: any) => !activeKeys.has(h.kode_rs || h.nama)
+            ).slice(0, 40) // Hard cap: never more than 40 markers
+          );
+        }
+      } catch (err) {
+        console.error("Error fetching nearby inactive hospitals:", err);
+      }
+    }
+    fetchNearby();
+    return () => { isMounted = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapZoom, mapCenter[0].toFixed(2), mapCenter[1].toFixed(2), activeHospitalsMap]);
 
   // Synchronize filtered seeker signals back to the parent sidebar component dynamically
   useEffect(() => {
@@ -1088,59 +1049,36 @@ export default function MapComponent({
           })
         }
 
-        {/* Render nearby inactive hospitals when zoomed in */}
-        {inactiveHospitals.map((h) => {
-          const inactiveIcon = L.divIcon({
-            className: 'inactive-leaflet-icon',
-            html: `
-              <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
-                <div style="position: relative; width: 18px; height: 18px; border-radius: 50%; background-color: #ffffff; border: 1.5px solid #94a3b8; box-shadow: 0 1.5px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 6V2"/>
-                    <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                    <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                    <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                    <path d="M16 14H8"/>
-                    <path d="M12 10v8"/>
-                  </svg>
+        {/* Render nearby inactive hospitals when zoomed in (>=14 only, max 40) */}
+        {/* inactiveIcon is defined at module level to avoid re-creating on every render */}
+        {inactiveHospitals.map((h) => (
+          <Marker
+            key={h.kode_rs || h.nama}
+            position={[h.latitude, h.longitude]}
+            icon={INACTIVE_HOSPITAL_ICON}
+            eventHandlers={{
+              click: () => {
+                if (onMapClick) {
+                  onMapClick(h.latitude, h.longitude);
+                }
+              }
+            }}
+          >
+            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+              <div className="font-sans px-1 py-1 max-w-[180px]">
+                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                  🏥 Rumah Sakit (Siaga)
+                </div>
+                <div className="font-bold text-xs text-slate-800 leading-tight mb-1">{h.nama}</div>
+                <div className="text-[9px] text-slate-400 font-semibold truncate">{h.alamat}</div>
+                <div className="text-[9px] text-slate-400 font-extrabold uppercase mt-1">{h.wilayah}</div>
+                <div className="text-[8px] text-slate-500 font-bold mt-2">
+                  *Belum ada aktivitas sinyal di sini.
                 </div>
               </div>
-            `,
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            popupAnchor: [0, -12],
-          });
-
-          return (
-            <Marker
-              key={h.kode_rs}
-              position={[h.latitude, h.longitude]}
-              icon={inactiveIcon}
-              eventHandlers={{
-                click: () => {
-                  // Allow selecting the hospital even if it's inactive (so seekers/donors can set their location by clicking)
-                  if (onMapClick) {
-                    onMapClick(h.latitude, h.longitude);
-                  }
-                }
-              }}
-            >
-              <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-                <div className="font-sans px-1 py-1 max-w-[180px]">
-                  <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
-                    🏥 Rumah Sakit (Siaga)
-                  </div>
-                  <div className="font-bold text-xs text-slate-800 leading-tight mb-1">{h.nama}</div>
-                  <div className="text-[9px] text-slate-400 font-semibold truncate">{h.alamat}</div>
-                  <div className="text-[9px] text-slate-400 font-extrabold uppercase mt-1">{h.wilayah}</div>
-                  <div className="text-[8px] text-slate-500 font-bold mt-2">
-                    *Belum ada aktivitas sinyal di sini.
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
       
       {!preview && (
