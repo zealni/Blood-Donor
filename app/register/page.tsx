@@ -175,7 +175,7 @@ function RegisterForm() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-5" translate="no" lang="id">
           {/* Full Name */}
           <div>
             <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Nama Lengkap</label>

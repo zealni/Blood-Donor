@@ -310,20 +310,19 @@ export default function MapComponent({
   const { language } = useLanguage();
   const [center, setCenter] = useState<[number, number]>(() => getInitialCenter());
   const [zoom, setZoom] = useState(13);
-  const [mapCenter, setMapCenter] = useState<[number, number]>(() => getInitialCenter());
-  const [mapZoom, setMapZoom] = useState(13);
+  // Use refs for mapCenter/mapZoom — map pan/zoom events must NOT trigger React re-renders.
+  // Previously: moveend → setMapCenter → re-render → onSignalsUpdate → parent re-render → infinite loop.
+  // Now: moveend only mutates a ref (zero re-renders from panning).
+  const mapCenterRef = useRef<[number, number]>(getInitialCenter());
+  const mapZoomRef = useRef<number>(13);
+  // mapCenter/mapZoom as state are only used for the inactiveHospitals viewport fetch (zoom ≥ 14).
+  // We keep a separate state solely to trigger that fetch, debounced.
+  const [mapViewTick, setMapViewTick] = useState(0);
+  const mapViewTickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hasUserLocation, setHasUserLocation] = useState(false);
   const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
   const [dbSignals, setDbSignals] = useState<any[]>([]);
 
-  // Sync viewport center with search center changes (geolocation / highlight)
-  useEffect(() => {
-    setMapCenter(center);
-  }, [center]);
-
-  useEffect(() => {
-    setMapZoom(zoom);
-  }, [zoom]);
   const supabase = createClient();
   
   // NOTE: We intentionally do NOT load all 2,920 hospitals on the client.
@@ -696,8 +695,11 @@ export default function MapComponent({
   // to avoid loading & rendering hundreds of DOM nodes at once.
   const [inactiveHospitals, setInactiveHospitals] = useState<any[]>([]);
   useEffect(() => {
+    const mapZoom = mapZoomRef.current;
+    const mapCenter = mapCenterRef.current;
     if (mapZoom < 14) {
-      setInactiveHospitals([]);
+      // Functional updater: bail out if already empty (avoids triggering re-render with [] !== [])
+      setInactiveHospitals(prev => prev.length === 0 ? prev : []);
       return;
     }
     let isMounted = true;
@@ -705,7 +707,7 @@ export default function MapComponent({
       try {
         // Fetch only hospitals near the current viewport center, limited by the server
         const res = await fetch(
-          `/api/hospitals?lat=${mapCenter[0]}&lng=${mapCenter[1]}&nearby=true&limit=40`
+          `/api/hospitals?lat=${mapCenterRef.current[0]}&lng=${mapCenterRef.current[1]}&nearby=true&limit=40`
         );
         if (res.ok && isMounted) {
           const data = await res.json();
@@ -724,7 +726,7 @@ export default function MapComponent({
     fetchNearby();
     return () => { isMounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapZoom, mapCenter[0].toFixed(2), mapCenter[1].toFixed(2), activeHospitalsMap]);
+  }, [mapViewTick, activeHospitalsMap]);
 
   // Synchronize filtered seeker signals back to the parent sidebar component dynamically
   useEffect(() => {
@@ -843,8 +845,12 @@ export default function MapComponent({
           <MapEventsHandler 
             onMapClick={onMapClick} 
             onMapMove={(lat, lng, z) => {
-              setMapCenter([lat, lng]);
-              setMapZoom(z);
+              // Write to refs — no React state update, no re-render during pan.
+              mapCenterRef.current = [lat, lng];
+              mapZoomRef.current = z;
+              // Debounced tick: only triggers the inactiveHospitals fetch (zoom ≥ 14).
+              if (mapViewTickTimer.current) clearTimeout(mapViewTickTimer.current);
+              mapViewTickTimer.current = setTimeout(() => setMapViewTick(t => t + 1), 400);
             }}
           />
         )}
@@ -925,12 +931,13 @@ export default function MapComponent({
         {/* Render grouped active hospital markers (seekers & donors) */}
         {activeHospitalsMap
           .filter(h => {
-            const d = Math.pow(h.latitude - mapCenter[0], 2) + Math.pow(h.longitude - mapCenter[1], 2);
-            if (mapZoom < 8) return true;                       // Show all at low zoom levels (< 8) on canvas
-            if (mapZoom >= 11) return d < 0.04;                  // ~22km limit
-            if (mapZoom >= 10) return d < 0.12;                  // ~38km limit
-            if (mapZoom >= 9) return d < 0.45;                   // ~74km limit
-            return d < 1.8;                                      // ~150km limit at zoom 8
+            const d = Math.pow(h.latitude - mapCenterRef.current[0], 2) + Math.pow(h.longitude - mapCenterRef.current[1], 2);
+            const mapZoom = mapZoomRef.current;
+            if (mapZoom < 8) return true;
+            if (mapZoom >= 11) return d < 0.04;
+            if (mapZoom >= 10) return d < 0.12;
+            if (mapZoom >= 9) return d < 0.45;
+            return d < 1.8;
           })
           .map((h) => {
             const seekerCount = h.seekers?.length || 0;
@@ -970,9 +977,8 @@ export default function MapComponent({
             );
 
             // At zoom < 15, use canvas-rendered CircleMarker for smooth panning.
-            // divIcon (DOM-based) markers are only used at very high zoom (>=15) where detail matters.
-            if (mapZoom < 15) {
-              const radiusSize = mapZoom < 8 ? 3.5 : (mapZoom < 11 ? 6 : 9);
+            if (mapZoomRef.current < 15) {
+              const radiusSize = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : 9);
               return (
                 <CircleMarker
                   key={h.kode_rs || h.nama}
@@ -1022,7 +1028,8 @@ export default function MapComponent({
         {/* Free-roaming Donor markers — independent of hospitals */}
         {activeDonors
           .filter(d => {
-            const dist2 = Math.pow(d.lat - mapCenter[0], 2) + Math.pow(d.lng - mapCenter[1], 2);
+            const dist2 = Math.pow(d.lat - mapCenterRef.current[0], 2) + Math.pow(d.lng - mapCenterRef.current[1], 2);
+            const mapZoom = mapZoomRef.current;
             if (mapZoom < 8) return true;
             if (mapZoom >= 11) return dist2 < 0.04;
             if (mapZoom >= 10) return dist2 < 0.12;
@@ -1031,9 +1038,8 @@ export default function MapComponent({
           })
           .map(d => {
             // zoom >= 15: use full divIcon donor marker.
-            // zoom <  15: use canvas CircleMarker for smooth performance.
-            if (mapZoom < 15) {
-              const r = mapZoom < 8 ? 3.5 : (mapZoom < 11 ? 6 : 9);
+            if (mapZoomRef.current < 15) {
+              const r = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : 9);
               return (
                 <CircleMarker
                   key={d.id}

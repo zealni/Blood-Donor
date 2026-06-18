@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { HeartHandshake, Search, Filter, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -89,6 +89,12 @@ export default function DonorDashboard() {
 
   // Seeker requests from MapComponent
   const [requests, setRequests] = useState<RequestSignal[]>([]);
+  // Stable callback reference — prevents cascade re-render loop:
+  // Without useCallback, every parent re-render creates a new setRequests reference,
+  // which triggers MapComponent's onSignalsUpdate effect on every render.
+  const handleSignalsUpdate = useCallback((signals: RequestSignal[]) => {
+    setRequests(signals);
+  }, []);
 
   // Filter and sort requests in the sidebar based on selection & selected hospital
   const processedRequests = useMemo(() => {
@@ -331,7 +337,7 @@ export default function DonorDashboard() {
             onSearchQueryChange={setSearchQuery}
             externalFilterBloodType={filterBloodType}
             externalFilterUrgency={filterUrgency}
-            onSignalsUpdate={setRequests}
+            onSignalsUpdate={handleSignalsUpdate}
             onHospitalSelect={setSelectedHospitalFilter}
             onMapClick={
               isAvailable && isSelectingOnMap
