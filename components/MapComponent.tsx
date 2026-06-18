@@ -259,12 +259,14 @@ function MapEventsHandler({
       }
     },
     movestart(e) {
-      const container = e.target.getContainer();
-      container.classList.add('map-moving');
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.add('map-moving');
+      }
     },
     moveend(e) {
-      const container = e.target.getContainer();
-      container.classList.remove('map-moving');
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.remove('map-moving');
+      }
 
       const center = e.target.getCenter();
       const zoom = e.target.getZoom();
@@ -317,6 +319,7 @@ export default function MapComponent({
   const { language } = useLanguage();
   const [center, setCenter] = useState<[number, number]>(() => getInitialCenter());
   const [zoom, setZoom] = useState(13);
+  
   // Use refs for mapCenter/mapZoom — map pan/zoom events must NOT trigger React re-renders.
   // Previously: moveend → setMapCenter → re-render → onSignalsUpdate → parent re-render → infinite loop.
   // Now: moveend only mutates a ref (zero re-renders from panning).
