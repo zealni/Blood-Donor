@@ -96,6 +96,13 @@ export default function DonorDashboard() {
     setRequests(signals);
   }, []);
 
+  const [visibleCount, setVisibleCount] = useState(15);
+
+  // Reset visible count when sorting, searching, or filtering changes
+  useEffect(() => {
+    setVisibleCount(15);
+  }, [filterBloodType, filterUrgency, searchQuery, radius, sortBy, selectedHospitalFilter]);
+
   // Filter and sort requests in the sidebar based on selection & selected hospital
   const processedRequests = useMemo(() => {
     let list = [...requests];
@@ -534,15 +541,30 @@ export default function DonorDashboard() {
             {/* Signal cards list */}
             <div className="flex flex-col gap-4 pb-4">
               {processedRequests.length > 0 ? (
-                processedRequests.map((req: RequestSignal) => (
-                  <DonorSignalCard
-                    key={req.id}
-                    request={req}
-                    isHighlighted={highlightedId === req.id}
-                    onClick={() => setHighlightedId(req.id)}
-                    onHelp={() => handleHandshakeInit(req)}
-                  />
-                ))
+                <>
+                  {processedRequests.slice(0, visibleCount).map((req: RequestSignal) => (
+                    <DonorSignalCard
+                      key={req.id}
+                      request={req}
+                      isHighlighted={highlightedId === req.id}
+                      onClick={() => setHighlightedId(req.id)}
+                      onHelp={() => handleHandshakeInit(req)}
+                    />
+                  ))}
+                  
+                  {processedRequests.length > visibleCount && (
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((prev) => prev + 15)}
+                      className="w-full py-3 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-primary text-xs font-black rounded-2xl border border-slate-200 dark:border-slate-800 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-2"
+                    >
+                      <span>{language === "en" ? "Load More" : "Tampilkan Lebih Banyak"}</span>
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        ({processedRequests.length - visibleCount} {language === "en" ? "more" : "tersisa"})
+                      </span>
+                    </button>
+                  )}
+                </>
               ) : (
                 <div className="py-8 text-center text-slate-400 text-xs">
                   {language === "en"
