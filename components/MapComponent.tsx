@@ -844,6 +844,7 @@ export default function MapComponent({
         dragging={!preview}
         scrollWheelZoom={!preview}
         doubleClickZoom={!preview}
+        inertia={false}
       >
         <ChangeView center={center} zoom={zoom} />
         
@@ -983,9 +984,9 @@ export default function MapComponent({
               </Popup>
             );
 
-            // At zoom < 15, use canvas-rendered CircleMarker for smooth panning.
-            if (mapZoomRef.current < 15) {
-              const radiusSize = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : 9);
+            // At zoom < 16, use canvas-rendered CircleMarker for smooth panning.
+            if (mapZoomRef.current < 16) {
+              const radiusSize = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : (mapZoomRef.current < 15 ? 9 : 12));
               return (
                 <CircleMarker
                   key={h.kode_rs || h.nama}
@@ -1044,9 +1045,9 @@ export default function MapComponent({
             return dist2 < 1.8;
           })
           .map(d => {
-            // zoom >= 15: use full divIcon donor marker.
-            if (mapZoomRef.current < 15) {
-              const r = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : 9);
+            // zoom >= 16: use full divIcon donor marker.
+            if (mapZoomRef.current < 16) {
+              const r = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : (mapZoomRef.current < 15 ? 9 : 12));
               return (
                 <CircleMarker
                   key={d.id}
@@ -1091,20 +1092,8 @@ export default function MapComponent({
         }
 
         {/* Render nearby inactive hospitals when zoomed in (>=14 only, max 40) */}
-        {/* inactiveIcon is defined at module level to avoid re-creating on every render */}
-        {inactiveHospitals.map((h) => (
-          <Marker
-            key={h.kode_rs || h.nama}
-            position={[h.latitude, h.longitude]}
-            icon={INACTIVE_HOSPITAL_ICON}
-            eventHandlers={{
-              click: () => {
-                if (onMapClick) {
-                  onMapClick(h.latitude, h.longitude);
-                }
-              }
-            }}
-          >
+        {inactiveHospitals.map((h) => {
+          const popupContent = (
             <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
               <div className="font-sans px-1 py-1 max-w-[180px]">
                 <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
@@ -1118,8 +1107,52 @@ export default function MapComponent({
                 </div>
               </div>
             </Popup>
-          </Marker>
-        ))}
+          );
+
+          // At zoom < 16, render inactive hospitals as Canvas CircleMarker to avoid DOM load
+          if (mapZoomRef.current < 16) {
+            const radiusSize = mapZoomRef.current < 15 ? 4.5 : 7;
+            return (
+              <CircleMarker
+                key={h.kode_rs || h.nama}
+                center={[h.latitude, h.longitude]}
+                radius={radiusSize}
+                pathOptions={{
+                  fillColor: '#94a3b8',
+                  color: '#ffffff',
+                  weight: 1.2,
+                  fillOpacity: 0.85
+                }}
+                eventHandlers={{
+                  click: () => {
+                    if (onMapClick) {
+                      onMapClick(h.latitude, h.longitude);
+                    }
+                  }
+                }}
+              >
+                {popupContent}
+              </CircleMarker>
+            );
+          }
+
+          return (
+            <Marker
+              key={h.kode_rs || h.nama}
+              position={[h.latitude, h.longitude]}
+              icon={INACTIVE_HOSPITAL_ICON}
+              eventHandlers={{
+                click: () => {
+                  if (onMapClick) {
+                    onMapClick(h.latitude, h.longitude);
+                  }
+                }
+              }}
+            >
+              {popupContent}
+            </Marker>
+          );
+        })}
       </MapContainer>
       
       {!preview && (
