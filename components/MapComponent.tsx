@@ -319,6 +319,7 @@ export default function MapComponent({
   const { language } = useLanguage();
   const [center, setCenter] = useState<[number, number]>(() => getInitialCenter());
   const [zoom, setZoom] = useState(13);
+  const [currentZoom, setCurrentZoom] = useState(13);
   
   // Use refs for mapCenter/mapZoom — map pan/zoom events must NOT trigger React re-renders.
   // Previously: moveend → setMapCenter → re-render → onSignalsUpdate → parent re-render → infinite loop.
@@ -627,6 +628,7 @@ export default function MapComponent({
       if (match && match.position) {
         setCenter(match.position as [number, number]);
         setZoom(15);
+        setCurrentZoom(15);
       }
     }
   }, [highlightedSignalId, dbSignals]);
@@ -861,6 +863,8 @@ export default function MapComponent({
               // Write to refs — no React state update, no re-render during pan.
               mapCenterRef.current = [lat, lng];
               mapZoomRef.current = z;
+              // Update state for legend zoom
+              setCurrentZoom(z);
               // Debounced tick: only triggers the inactiveHospitals fetch (zoom ≥ 14).
               if (mapViewTickTimer.current) clearTimeout(mapViewTickTimer.current);
               mapViewTickTimer.current = setTimeout(() => setMapViewTick(t => t + 1), 400);
@@ -1167,26 +1171,84 @@ export default function MapComponent({
           className="absolute bottom-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl"
         >
           <div className="flex items-center gap-3">
-            <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] border-2 border-white" />
+            {currentZoom >= 16 ? (
+              <div className="relative w-6 h-6 flex items-center justify-center shrink-0">
+                <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-red-500 shadow-sm flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 6V2"/>
+                    <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                    <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                    <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                    <path d="M16 14H8"/>
+                    <path d="M12 10v8"/>
+                  </svg>
+                </div>
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border border-white animate-pulse" />
+              </div>
+            ) : (
+              <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] border-2 border-white shrink-0" />
+            )}
             <span className="text-slate-700 dark:text-slate-200">
               {language === "en" ? "Emergency Blood Request" : "Sinyal Darurat (Butuh Darah)"}
             </span>
           </div>
+
           <div className="flex items-center gap-3">
-            <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
+            <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm shrink-0" />
             <span className="text-slate-700 dark:text-slate-200">
               {language === "en" ? "Ready Donors" : "Pendonor Siaga"}
             </span>
           </div>
+
           <div className="flex items-center gap-3">
-            <span className="w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm" />
+            <span className="w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm shrink-0" />
             <span className="text-slate-700 dark:text-slate-200">
               {language === "en" ? "Radar Center (My Location)" : "Pusat Radar (Lokasi Anda)"}
             </span>
           </div>
+
+          {currentZoom >= 14 && (
+            <div className="flex items-center gap-3">
+              {currentZoom >= 16 ? (
+                <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                  <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-slate-400 shadow-sm flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 6V2"/>
+                      <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                      <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                      <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                      <path d="M16 14H8"/>
+                      <path d="M12 10v8"/>
+                    </svg>
+                  </div>
+                </div>
+              ) : (
+                <span className="w-3.5 h-3.5 rounded-full bg-slate-400 border-2 border-white shadow-sm shrink-0" />
+              )}
+              <span className="text-slate-700 dark:text-slate-200">
+                {language === "en" ? "Hospital on Alert (Inactive)" : "Rumah Sakit Siaga"}
+              </span>
+            </div>
+          )}
+
           {selectedHospitalPosition && (
             <div className="flex items-center gap-3">
-              <span className="w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm" />
+              {currentZoom >= 16 ? (
+                <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                  <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-amber-500 shadow-sm flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 6V2"/>
+                      <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                      <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                      <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                      <path d="M16 14H8"/>
+                      <path d="M12 10v8"/>
+                    </svg>
+                  </div>
+                </div>
+              ) : (
+                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm shrink-0" />
+              )}
               <span className="text-slate-700 dark:text-slate-200">
                 {selectedHospitalName?.toLowerCase().includes("saya") || selectedHospitalName?.toLowerCase().includes("my") || selectedHospitalName?.toLowerCase().includes("donor")
                   ? (language === "en" ? "My Ready Point" : "Titik Siaga Anda")
