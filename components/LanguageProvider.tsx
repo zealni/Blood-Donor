@@ -573,7 +573,24 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     };
 
     let frame = 0;
-    const observer = new MutationObserver(() => {
+    const observer = new MutationObserver((mutations) => {
+      // Skip scheduling translation if all mutations occurred inside data-no-translate elements
+      const hasOutsideMutation = mutations.some((mutation) => {
+        let node: Node | null = mutation.target;
+        while (node && node !== document.body) {
+          if (node.nodeType === 1) {
+            const el = node as Element;
+            if (el.getAttribute("data-no-translate") === "true") {
+              return false;
+            }
+          }
+          node = node.parentNode;
+        }
+        return true;
+      });
+
+      if (!hasOutsideMutation) return;
+
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => applyLanguage(language));
     });

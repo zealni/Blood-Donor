@@ -258,7 +258,14 @@ function MapEventsHandler({
         onMapClick(e.latlng.lat, e.latlng.lng);
       }
     },
+    movestart(e) {
+      const container = e.target.getContainer();
+      container.classList.add('map-moving');
+    },
     moveend(e) {
+      const container = e.target.getContainer();
+      container.classList.remove('map-moving');
+
       const center = e.target.getCenter();
       const zoom = e.target.getZoom();
       if (onMapMove) {
@@ -780,7 +787,7 @@ export default function MapComponent({
     : "left-6";
 
   return (
-    <div className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0">
+    <div data-no-translate="true" className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0">
       
       {!preview && (
         <>

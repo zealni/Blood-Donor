@@ -122,3 +122,9 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(244, 63, 94, 0.4); /* soft rose on hover */
 }
+
+/* Pause pulsing animations and transitions inside Leaflet map while dragging to avoid lag */
+.map-moving * {
+  animation: none !important;
+  transition: none !important;
+}
