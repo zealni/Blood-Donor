@@ -353,18 +353,15 @@ export default function DonorDashboard() {
                       const res = await fetch(`/api/hospitals?lat=${lat}&lng=${lng}`);
                       if (res.ok) {
                         const hospital = await res.json();
-                        if (hospital) {
-                          updateMySignal(true, [hospital.latitude, hospital.longitude]);
-                        } else {
-                          updateMySignal(true, [lat, lng]);
+                        if (hospital && hospital.nama) {
+                          setHospitalName(hospital.nama);
                         }
-                      } else {
-                        updateMySignal(true, [lat, lng]);
                       }
                     } catch (e) {
-                      console.error("Error snapping map click to nearest hospital:", e);
-                      updateMySignal(true, [lat, lng]);
+                      console.error("Error resolving hospital name for map click:", e);
                     }
+                    // Save exact clicked coordinates, do not snap to hospital coordinates
+                    updateMySignal(true, [lat, lng]);
                   }
                 : undefined
             }

@@ -367,18 +367,16 @@ export default function MyDonorSignalPanel({
                           const res = await fetch(`/api/hospitals?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`);
                           if (res.ok) {
                             const hospital = await res.json();
-                            if (hospital) {
-                              onUpdateSignal(true, [hospital.latitude, hospital.longitude]);
-                            } else {
-                              onUpdateSignal(true, [pos.coords.latitude, pos.coords.longitude]);
+                            if (hospital && hospital.nama) {
+                              setResolvedHospitalName(hospital.nama);
+                              setHospitalSearch(hospital.nama);
                             }
-                          } else {
-                            onUpdateSignal(true, [pos.coords.latitude, pos.coords.longitude]);
                           }
                         } catch (err) {
-                          console.error("Error snapping GPS to nearest hospital:", err);
-                          onUpdateSignal(true, [pos.coords.latitude, pos.coords.longitude]);
+                          console.error("Error resolving nearest hospital name for GPS:", err);
                         }
+                        // Update signal with the exact GPS coordinates, do not snap to hospital coordinates
+                        onUpdateSignal(true, [pos.coords.latitude, pos.coords.longitude]);
                       },
                       (err) => {
                         if (err.code === 1 || err.code === err.PERMISSION_DENIED) {
