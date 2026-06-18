@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -185,13 +185,61 @@ function getTimeAgo(dateString: string, lang: "id" | "en") {
     : `${diffDays} hari yang lalu`;
 }
 
+// Module-level icon cache: keyed by "seekerCount:color" to avoid recreating L.divIcon on every render.
+const _hospitalIconCache = new Map<string, L.DivIcon>();
+function getHospitalMarkerIcon(seekerCount: number, color: string): L.DivIcon {
+  const key = `${seekerCount}:${color}`;
+  if (!_hospitalIconCache.has(key)) {
+    _hospitalIconCache.set(key, L.divIcon({
+      className: 'custom-leaflet-icon',
+      html: `
+        <div style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
+          <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: ${color};"></span>
+          <div style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: #ffffff; border: 2.5px solid ${color}; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 6V2"/>
+              <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+              <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+              <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+              <path d="M16 14H8"/>
+              <path d="M12 10v8"/>
+            </svg>
+          </div>
+          ${seekerCount > 0 ? `
+            <span style="position: absolute; top: -2px; right: -2px; background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 1px 4.5px; border-radius: 9999px; border: 1.5px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
+              ${seekerCount}
+            </span>
+          ` : ''}
+        </div>
+      `,
+      iconSize: [42, 42],
+      iconAnchor: [21, 21],
+      popupAnchor: [0, -21],
+    }));
+  }
+  return _hospitalIconCache.get(key)!;
+}
+
 // Next.js leaflet dynamic view changer
+// Uses setView (instant) instead of flyTo to avoid triggering moveend → re-render cascades.
+// A ref guard ensures we only reposition when center actually changes by a meaningful distance,
+// preventing ChangeView from firing during user-initiated map drags.
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
-
+  const prevCenter = useRef<[number, number] | null>(null);
+  const prevZoom = useRef<number | null>(null);
 
   useEffect(() => {
-    map.flyTo(center, zoom, { duration: 1.5 });
+    const centerChanged = !prevCenter.current ||
+      Math.abs(prevCenter.current[0] - center[0]) > 0.0005 ||
+      Math.abs(prevCenter.current[1] - center[1]) > 0.0005;
+    const zoomChanged = prevZoom.current !== zoom;
+
+    if (centerChanged || zoomChanged) {
+      map.setView(center, zoom, { animate: true, duration: 0.4 });
+      prevCenter.current = center;
+      prevZoom.current = zoom;
+    }
   }, [center, zoom, map]);
   return null;
 }
@@ -921,8 +969,10 @@ export default function MapComponent({
               </Popup>
             );
 
-            if (mapZoom < 11) {
-              const radiusSize = mapZoom < 8 ? 3.5 : 6;
+            // At zoom < 15, use canvas-rendered CircleMarker for smooth panning.
+            // divIcon (DOM-based) markers are only used at very high zoom (>=15) where detail matters.
+            if (mapZoom < 15) {
+              const radiusSize = mapZoom < 8 ? 3.5 : (mapZoom < 11 ? 6 : 9);
               return (
                 <CircleMarker
                   key={h.kode_rs || h.nama}
@@ -947,33 +997,9 @@ export default function MapComponent({
               );
             }
 
-            // High Zoom: Full premium pulsing 42px hospital building SVG icon
-            const hospitalMarkerIcon = L.divIcon({
-              className: 'custom-leaflet-icon',
-              html: `
-                <div style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-                  <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: ${color};"></span>
-                  <div style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: #ffffff; border: 2.5px solid ${color}; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; transition: all 0.2s ease-in-out;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M12 6V2"/>
-                      <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                      <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                      <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                      <path d="M16 14H8"/>
-                      <path d="M12 10v8"/>
-                    </svg>
-                  </div>
-                  ${seekerCount > 0 ? `
-                    <span style="position: absolute; top: -2px; right: -2px; background-color: #ef4444; color: white; font-size: 8px; font-weight: 900; padding: 1px 4.5px; border-radius: 9999px; border: 1.5px solid white; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">
-                      ${seekerCount}
-                    </span>
-                  ` : ''}
-                </div>
-              `,
-              iconSize: [42, 42],
-              iconAnchor: [21, 21],
-              popupAnchor: [0, -21],
-            });
+            // zoom >= 15: Full premium pulsing 42px hospital building SVG icon
+            // Use cached icon to avoid creating a new L.divIcon object on every render.
+            const hospitalMarkerIcon = getHospitalMarkerIcon(seekerCount, color);
 
             return (
               <Marker
@@ -1004,8 +1030,10 @@ export default function MapComponent({
             return dist2 < 1.8;
           })
           .map(d => {
-            if (mapZoom < 11) {
-              const r = mapZoom < 8 ? 3.5 : 6;
+            // zoom >= 15: use full divIcon donor marker.
+            // zoom <  15: use canvas CircleMarker for smooth performance.
+            if (mapZoom < 15) {
+              const r = mapZoom < 8 ? 3.5 : (mapZoom < 11 ? 6 : 9);
               return (
                 <CircleMarker
                   key={d.id}
