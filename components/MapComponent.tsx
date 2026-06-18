@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -9,6 +9,7 @@ import { useLanguage } from './LanguageProvider';
 import { createClient } from '../lib/supabase/client';
 import { 
   provinceShortNames, 
+  provinceCenters,
   matchProvince, 
   getDistance, 
   parseWkbHexPoint 
@@ -32,7 +33,7 @@ const createCustomIcon = (type: 'seeker' | 'donor' | 'user' | 'selected') => {
     className: 'custom-leaflet-icon',
     html: `
       <div style="position: relative; width: ${size}px; height: ${size}px;">
-        ${showPulse ? `<span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.75; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: #${color};"></span>` : ''}
+        ${showPulse ? `<span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.75; background-color: #${color};"></span>` : ''}
         <span style="position: relative; display: flex; align-items: center; justify-content: center; width: ${innerSize}px; height: ${innerSize}px; margin: ${margin}px; border-radius: 50%; background-color: #${color}; box-shadow: 0 0 10px rgba(0,0,0,0.5); border: 2px solid white;"></span>
       </div>
     `,
@@ -49,7 +50,7 @@ const selectedIcon = L.divIcon({
   className: 'custom-leaflet-icon',
   html: `
     <div style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-      <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: #f59e0b;"></span>
+      <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; background-color: #f59e0b;"></span>
       <div style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: #ffffff; border: 2.5px solid #f59e0b; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 6V2"/>
@@ -72,9 +73,9 @@ const selectedIcon = L.divIcon({
 const INACTIVE_HOSPITAL_ICON = L.divIcon({
   className: 'inactive-leaflet-icon',
   html: `
-    <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
-      <div style="position: relative; width: 18px; height: 18px; border-radius: 50%; background-color: #ffffff; border: 1.5px solid #94a3b8; box-shadow: 0 1.5px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; opacity: 0.95;">
+      <div style="position: relative; width: 18px; height: 18px; border-radius: 50%; background-color: #ffffff; border: 1.5px solid #64748b; box-shadow: 0 1.5px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 6V2"/>
           <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
           <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
@@ -194,9 +195,9 @@ function getHospitalMarkerIcon(seekerCount: number, color: string): L.DivIcon {
       className: 'custom-leaflet-icon',
       html: `
         <div style="position: relative; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;">
-          <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; background-color: ${color};"></span>
+          <span style="position: absolute; inset: 0; border-radius: 50%; opacity: 0.25; background-color: ${color};"></span>
           <div style="position: relative; width: 32px; height: 32px; border-radius: 50%; background-color: #ffffff; border: 2.5px solid ${color}; box-shadow: 0 3px 8px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 6V2"/>
               <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
               <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
@@ -224,34 +225,54 @@ function getHospitalMarkerIcon(seekerCount: number, color: string): L.DivIcon {
 // Uses setView (instant) instead of flyTo to avoid triggering moveend → re-render cascades.
 // A ref guard ensures we only reposition when center actually changes by a meaningful distance,
 // preventing ChangeView from firing during user-initiated map drags.
-function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
+function ChangeView({ 
+  center, 
+  zoom, 
+  recenterTrigger 
+}: { 
+  center: [number, number]; 
+  zoom: number; 
+  recenterTrigger: number;
+}) {
   const map = useMap();
   const prevCenter = useRef<[number, number] | null>(null);
   const prevZoom = useRef<number | null>(null);
+  const prevTrigger = useRef<number>(0);
 
   useEffect(() => {
     const centerChanged = !prevCenter.current ||
       Math.abs(prevCenter.current[0] - center[0]) > 0.0005 ||
       Math.abs(prevCenter.current[1] - center[1]) > 0.0005;
     const zoomChanged = prevZoom.current !== zoom;
+    const triggerChanged = prevTrigger.current !== recenterTrigger;
 
-    if (centerChanged || zoomChanged) {
+    if (centerChanged || zoomChanged || triggerChanged) {
       map.setView(center, zoom, { animate: true, duration: 0.4 });
       prevCenter.current = center;
       prevZoom.current = zoom;
+      prevTrigger.current = recenterTrigger;
     }
-  }, [center, zoom, map]);
+  }, [center, zoom, map, recenterTrigger]);
   return null;
 }
 
 // Leaflet click handler component for interactive location pinning and saving last dragged location
 function MapEventsHandler({ 
   onMapClick,
-  onMapMove
+  onMapMove,
+  onBoundsChange
 }: { 
   onMapClick?: (lat: number, lng: number) => void;
   onMapMove?: (lat: number, lng: number, zoom: number) => void;
+  onBoundsChange: (bounds: L.LatLngBounds) => void;
 }) {
+  const map = useMap();
+  
+  // Set initial bounds once map is ready
+  useEffect(() => {
+    onBoundsChange(map.getBounds());
+  }, [map, onBoundsChange]);
+
   useMapEvents({
     click(e) {
       if (onMapClick) {
@@ -276,10 +297,392 @@ function MapEventsHandler({
       if (typeof window !== "undefined") {
         window.localStorage.setItem("last_map_center", JSON.stringify([center.lat, center.lng]));
       }
+      onBoundsChange(e.target.getBounds());
+    },
+    zoomend(e) {
+      onBoundsChange(e.target.getBounds());
     }
   });
   return null;
 }
+
+// Memoized Active Hospital Marker component to optimize React diffing performance
+function formatHospitalType(type?: string) {
+  if (!type) return '';
+  return type
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+    .replace(/^Rs\b/i, 'RS');
+}
+
+// Memoized Active Hospital Marker component to optimize React diffing performance
+const ActiveHospitalMarker = memo(({ 
+  h, 
+  icon, 
+  seekerCount, 
+  donorCount, 
+  language,
+  onHospitalSelect 
+}: { 
+  h: any; 
+  icon: L.DivIcon; 
+  seekerCount: number; 
+  donorCount: number; 
+  language: 'id' | 'en';
+  onHospitalSelect?: (name: string | null) => void;
+}) => {
+  const [details, setDetails] = useState<{ 
+    alamat?: string; 
+    wilayah?: string;
+    tipe?: string;
+    telepon?: string;
+    tempat_tidur?: number;
+  } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const fetchDetails = useCallback(async () => {
+    if (details || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/hospitals?lat=${h.latitude}&lng=${h.longitude}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setDetails({
+            alamat: data.alamat,
+            wilayah: data.wilayah,
+            tipe: data.tipe,
+            telepon: data.telepon,
+            tempat_tidur: data.tempat_tidur
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching hospital details:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [h.latitude, h.longitude, details, loading]);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(`${h.latitude},${h.longitude}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [h.latitude, h.longitude]);
+
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`;
+
+  return (
+    <Marker
+      position={[h.latitude, h.longitude]}
+      icon={icon}
+      eventHandlers={{
+        click: () => {
+          if (onHospitalSelect) {
+            onHospitalSelect(h.nama);
+          }
+          fetchDetails();
+        }
+      }}
+    >
+      <Popup className="rounded-[1.5rem] overflow-hidden shadow-2xl border-none p-0 max-w-[280px]">
+        <div className="font-sans p-3 flex flex-col gap-2.5">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5 shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-505 flex items-center gap-1">
+              🏥 {language === 'en' ? 'Hospital' : 'Rumah Sakit'}
+              {seekerCount > 0 && <span className="text-rose-500 font-extrabold">({language === 'en' ? 'Seekers Active' : 'Ada Pemohon'})</span>}
+              {seekerCount === 0 && donorCount > 0 && <span className="text-emerald-500 font-extrabold">({language === 'en' ? 'Donors Ready' : 'Ada Pendonor'})</span>}
+            </span>
+          </div>
+
+          {/* Hospital Name */}
+          <div className="font-black text-sm text-slate-900 dark:text-white leading-snug">{h.nama}</div>
+
+          {/* Badges: Tipe, Bed Count */}
+          {(details?.tipe || details?.tempat_tidur) && (
+            <div className="flex flex-wrap gap-1.5">
+              {details.tipe && (
+                <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 text-[9px] font-extrabold rounded-md border border-blue-100/30 dark:border-blue-900/30">
+                  {formatHospitalType(details.tipe)}
+                </span>
+              )}
+              {details.tempat_tidur !== undefined && details.tempat_tidur > 0 && (
+                <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 text-[9px] font-bold rounded-md border border-slate-100 dark:border-slate-800">
+                  🛌 {details.tempat_tidur} Beds
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Address details */}
+          {loading ? (
+            <div className="text-[10px] text-slate-400 animate-pulse flex items-center gap-1.5 py-1">
+              <div className="w-3.5 h-3.5 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+              <span>Memuat alamat lengkap...</span>
+            </div>
+          ) : details?.alamat ? (
+            <div className="text-[10px] text-slate-600 dark:text-slate-350 leading-relaxed bg-slate-50/50 dark:bg-slate-950/30 p-2 rounded-xl border border-slate-100/50 dark:border-slate-800/50 flex flex-col gap-1">
+              <div className="flex items-start gap-1">
+                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                <p className="font-semibold text-slate-700 dark:text-slate-300">{details.alamat}</p>
+              </div>
+              {details.wilayah && (
+                <p className="text-[9px] font-bold text-slate-400 dark:text-slate-505 uppercase pl-4.5">{details.wilayah}</p>
+              )}
+            </div>
+          ) : null}
+
+          {/* Contact Details */}
+          {details?.telepon && (
+            <div className="text-[10px] text-slate-600 dark:text-slate-350 leading-none">
+              <a href={`tel:${details.telepon}`} className="flex items-center gap-1.5 text-primary hover:underline font-bold">
+                <Phone className="w-3.5 h-3.5 shrink-0" />
+                <span>{details.telepon}</span>
+              </a>
+            </div>
+          )}
+
+          <div className="text-[10px] text-slate-600 dark:text-slate-350 font-bold space-y-1 border-t border-slate-100 dark:border-slate-800/80 pt-2">
+            {seekerCount > 0 && <div className="flex items-center gap-1">🔴 <span className="font-black text-rose-600 dark:text-rose-400">{seekerCount}</span> {language === 'en' ? 'Active Seekers' : 'Pemohon Darah Aktif'}</div>}
+            {donorCount > 0 && <div className="flex items-center gap-1">🟢 <span className="font-black text-emerald-600 dark:text-emerald-400">{donorCount}</span> {language === 'en' ? 'Ready Donors' : 'Pendonor Siaga'}</div>}
+          </div>
+          
+          {seekerCount > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {h.seekers.map((r: any, idx: number) => (
+                <span key={idx} className="px-1.5 py-0.5 bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 text-[9px] font-bold rounded-md border border-rose-100/50 dark:border-rose-900/30">
+                  {r.bloodType} ({r.urgency})
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Navigation Options */}
+          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-1.5 shrink-0">
+            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 block">
+              🧭 {language === 'en' ? 'Navigation Options' : 'Pilihan Navigasi'}
+            </span>
+            
+            <div className="grid grid-cols-2 gap-1.5">
+              <a 
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1.5 bg-primary hover:bg-primary/95 text-white text-[9px] font-black rounded-lg transition-all text-center flex items-center justify-center gap-1 shadow-sm shadow-rose-500/10"
+              >
+                <MapIcon className="w-3 h-3 text-white" />
+                Google Maps
+              </a>
+              <a 
+                href={`https://waze.com/ul?ll=${h.latitude},${h.longitude}&navigate=yes`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1.5 bg-sky-550 hover:bg-sky-600 text-white text-[9px] font-black rounded-lg transition-all text-center flex items-center justify-center gap-1 shadow-sm shadow-sky-500/10"
+              >
+                <MapIcon className="w-3 h-3 text-white" />
+                Waze
+              </a>
+            </div>
+
+            <button 
+              onClick={handleCopy}
+              className={`w-full py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-[9px] font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 border border-slate-200/50 dark:border-slate-700/50 ${copied ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30' : ''}`}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-500" />
+                  <span>{language === 'en' ? 'Coordinates Copied!' : 'Koordinat Disalin!'}</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-3 h-3 rotate-45" />
+                  <span>{language === 'en' ? 'Copy GPS Coordinates' : 'Salin Koordinat GPS'}</span>
+                </>
+              )}
+            </button>
+
+            <p className="text-[8.5px] text-slate-400 dark:text-slate-500 font-semibold italic text-center mt-1">
+              {language === 'en' ? '*Click to view full list in the left panel.' : '*Klik untuk melihat daftar lengkap di panel kiri.'}
+            </p>
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
+});
+ActiveHospitalMarker.displayName = 'ActiveHospitalMarker';
+
+// Memoized Inactive Hospital Marker component
+const InactiveHospitalMarker = memo(({ 
+  h, 
+  icon, 
+  language,
+  onMapClick 
+}: { 
+  h: any; 
+  icon: L.DivIcon; 
+  language: 'id' | 'en';
+  onMapClick?: (lat: number, lng: number) => void;
+}) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(`${h.latitude},${h.longitude}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [h.latitude, h.longitude]);
+
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${h.latitude},${h.longitude}`;
+
+  return (
+    <Marker
+      position={[h.latitude, h.longitude]}
+      icon={icon}
+      eventHandlers={{
+        click: () => {
+          if (onMapClick) {
+            onMapClick(h.latitude, h.longitude);
+          }
+        }
+      }}
+    >
+      <Popup className="rounded-[1.5rem] overflow-hidden shadow-2xl border-none p-0 max-w-[280px]">
+        <div className="font-sans p-3 flex flex-col gap-2.5">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5 shrink-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-505 flex items-center gap-1">
+              🏥 {language === 'en' ? 'Hospital (Standby)' : 'Rumah Sakit (Siaga)'}
+            </span>
+          </div>
+
+          {/* Hospital Name */}
+          <div className="font-black text-sm text-slate-800 dark:text-white leading-snug">{h.nama}</div>
+
+          {/* Badges: Tipe, Bed Count */}
+          {(h.tipe || h.tempat_tidur) && (
+            <div className="flex flex-wrap gap-1.5">
+              {h.tipe && (
+                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-400 text-[9px] font-extrabold rounded-md border border-slate-200/30 dark:border-slate-700/30">
+                  {formatHospitalType(h.tipe)}
+                </span>
+              )}
+              {h.tempat_tidur !== undefined && h.tempat_tidur > 0 && (
+                <span className="px-2 py-0.5 bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 text-[9px] font-bold rounded-md border border-slate-100 dark:border-slate-800">
+                  🛌 {h.tempat_tidur} Beds
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Address Details */}
+          {h.alamat ? (
+            <div className="text-[10px] text-slate-600 dark:text-slate-350 leading-relaxed bg-slate-50/50 dark:bg-slate-950/30 p-2 rounded-xl border border-slate-100/50 dark:border-slate-800/50 flex flex-col gap-1">
+              <div className="flex items-start gap-1">
+                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                <p className="font-semibold text-slate-700 dark:text-slate-300">{h.alamat}</p>
+              </div>
+              {h.wilayah && (
+                <p className="text-[9px] font-bold text-slate-400 dark:text-slate-550 uppercase pl-4.5">{h.wilayah}</p>
+              )}
+            </div>
+          ) : null}
+
+          {/* Contact Details */}
+          {h.telepon && (
+            <div className="text-[10px] text-slate-650 dark:text-slate-350 leading-none">
+              <a href={`tel:${h.telepon}`} className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:underline font-bold">
+                <Phone className="w-3.5 h-3.5 shrink-0" />
+                <span>{h.telepon}</span>
+              </a>
+            </div>
+          )}
+
+          <div className="text-[8.5px] text-slate-450 dark:text-slate-500 font-bold mt-1 border-t border-slate-100 dark:border-slate-800/80 pt-2">
+            {language === 'en' ? '*No active signal activity here yet.' : '*Belum ada aktivitas sinyal di sini.'}
+          </div>
+          
+          {/* Navigation Buttons Options */}
+          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-1.5 shrink-0">
+            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5 block">
+              🧭 {language === 'en' ? 'Navigation Options' : 'Pilihan Navigasi'}
+            </span>
+            
+            <div className="grid grid-cols-2 gap-1.5">
+              <a 
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-[9px] font-black rounded-lg transition-all text-center flex items-center justify-center gap-1 border border-slate-200/50 dark:border-slate-700/50"
+              >
+                <MapIcon className="w-3 h-3 text-slate-500" />
+                Google Maps
+              </a>
+              <a 
+                href={`https://waze.com/ul?ll=${h.latitude},${h.longitude}&navigate=yes`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-[9px] font-black rounded-lg transition-all text-center flex items-center justify-center gap-1 border border-slate-200/50 dark:border-slate-700/50"
+              >
+                <MapIcon className="w-3 h-3 text-slate-500" />
+                Waze
+              </a>
+            </div>
+
+            <button 
+              onClick={handleCopy}
+              className={`w-full py-1 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-400 text-[9px] font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 border border-slate-200/30 dark:border-slate-700/30 ${copied ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/30' : ''}`}
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3 h-3 text-emerald-500" />
+                  <span>{language === 'en' ? 'Coordinates Copied!' : 'Koordinat Disalin!'}</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-3 h-3 rotate-45" />
+                  <span>{language === 'en' ? 'Copy GPS Coordinates' : 'Salin Koordinat GPS'}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
+});
+InactiveHospitalMarker.displayName = 'InactiveHospitalMarker';
+
+// Memoized Donor Marker component
+const DonorMarker = memo(({ 
+  d, 
+  icon, 
+  language 
+}: { 
+  d: any; 
+  icon: L.DivIcon; 
+  language: 'id' | 'en';
+}) => {
+  return (
+    <Marker
+      position={[d.lat, d.lng]}
+      icon={icon}
+    >
+      <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
+        <div className="font-sans px-1 py-1 min-w-[160px]">
+          <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 mb-1">🟢 Pendonor Siaga</div>
+          <div className="font-black text-sm text-slate-900">{d.bloodType}</div>
+          <div className="text-[9px] text-slate-400 mt-0.5 font-semibold">{d.location}</div>
+          {d.time_ago && (
+            <div className="text-[8px] text-slate-400 mt-1">{getTimeAgo(d.time_ago, language)}</div>
+          )}
+        </div>
+      </Popup>
+    </Marker>
+  );
+});
+DonorMarker.displayName = 'DonorMarker';
 
 // Database signals will replace staticSignals
 
@@ -320,6 +723,7 @@ export default function MapComponent({
   const [center, setCenter] = useState<[number, number]>(() => getInitialCenter());
   const [zoom, setZoom] = useState(13);
   const [currentZoom, setCurrentZoom] = useState(13);
+  const [recenterTrigger, setRecenterTrigger] = useState(0);
   
   // Use refs for mapCenter/mapZoom — map pan/zoom events must NOT trigger React re-renders.
   // Previously: moveend → setMapCenter → re-render → onSignalsUpdate → parent re-render → infinite loop.
@@ -333,6 +737,12 @@ export default function MapComponent({
   const [hasUserLocation, setHasUserLocation] = useState(false);
   const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
   const [dbSignals, setDbSignals] = useState<any[]>([]);
+  const mapBoundsRef = useRef<L.LatLngBounds | null>(null);
+  
+  const handleBoundsChange = useCallback((bounds: L.LatLngBounds) => {
+    mapBoundsRef.current = bounds;
+    setMapViewTick(t => t + 1);
+  }, []);
 
   const supabase = createClient();
   
@@ -377,6 +787,7 @@ export default function MapComponent({
           const data = await response.json();
           if (data.latitude && data.longitude) {
             setCenter([data.latitude, data.longitude]);
+            setRecenterTrigger(prev => prev + 1);
             setHasUserLocation(true);
             setZoom(13);
             console.log("Location detected via ipapi.co fallback:", data.city);
@@ -407,6 +818,7 @@ export default function MapComponent({
             const [lat, lng] = data.loc.split(",").map(Number);
             if (!isNaN(lat) && !isNaN(lng)) {
               setCenter([lat, lng]);
+              setRecenterTrigger(prev => prev + 1);
               setHasUserLocation(true);
               setZoom(13);
               console.log("Location detected via ipinfo.io fallback:", data.city);
@@ -436,6 +848,7 @@ export default function MapComponent({
           const data = await response.json();
           if (data.latitude && data.longitude) {
             setCenter([data.latitude, data.longitude]);
+            setRecenterTrigger(prev => prev + 1);
             setHasUserLocation(true);
             setZoom(13);
             console.log("Location detected via freeipapi.com fallback:", data.cityName);
@@ -466,6 +879,7 @@ export default function MapComponent({
       (position) => {
         const { latitude, longitude } = position.coords;
         setCenter([latitude, longitude]);
+        setRecenterTrigger(prev => prev + 1);
         setHasUserLocation(true);
         setZoom(14);
         console.log("Location detected successfully via HTML5 Geolocation (High Accuracy)");
@@ -490,6 +904,7 @@ export default function MapComponent({
           (pos) => {
             const { latitude, longitude } = pos.coords;
             setCenter([latitude, longitude]);
+            setRecenterTrigger(prev => prev + 1);
             setHasUserLocation(true);
             setZoom(14);
             console.log("Location detected successfully via HTML5 Geolocation (Low Accuracy)");
@@ -584,7 +999,21 @@ export default function MapComponent({
         const donors = (donorsData || [])
           .filter((d: any) => d.id !== currentUserId)
           .map((d: any) => {
-            const coords = parseWkbHexPoint(d.location);
+            const coords = parseWkbHexPoint(d.location) || DEFAULT_CENTER;
+            
+            // Apply a stable, deterministic jitter using the donor's ID
+            // so they are scattered in the surrounding area instead of sitting exactly on the hospital
+            let hash = 0;
+            for (let i = 0; i < d.id.length; i++) {
+              hash = d.id.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const pseudoRandom1 = ((Math.abs(hash) % 1000) / 500) - 1;
+            const pseudoRandom2 = ((Math.floor(Math.abs(hash) / 1000) % 1000) / 500) - 1;
+            const maxOffset = 0.007; // ~700m range to scatter them around the hospital/streets
+            
+            const jitteredLat = coords[0] + (pseudoRandom1 * maxOffset);
+            const jitteredLng = coords[1] + (pseudoRandom2 * maxOffset);
+
             return {
               id: d.id,
               type: 'donor',
@@ -593,13 +1022,45 @@ export default function MapComponent({
               urgency: 'Sedia',
               bags_needed: 1,
               time_ago: d.last_donation,
-              position: coords || DEFAULT_CENTER,
-              lat: coords ? coords[0] : DEFAULT_CENTER[0],
-              lng: coords ? coords[1] : DEFAULT_CENTER[1]
+              position: [jitteredLat, jitteredLng],
+              lat: jitteredLat,
+              lng: jitteredLng
             };
           });
 
-        const combined = [...seekers, ...donors];
+        // Simulate at least 30 standby donors per province
+        const simulatedDonors: any[] = [];
+        const bloodTypes = ['A', 'B', 'AB', 'O'];
+        const rhesuses = ['+', '-'];
+        
+        Object.entries(provinceCenters).forEach(([provKey, centerCoords]) => {
+          for (let i = 0; i < 30; i++) {
+            // Spiral trigonometric distribution to scatter them nicely in the province
+            const angle = (i * 2 * Math.PI) / 30;
+            // Radius ranges from 0.05 degrees (~5.5km) up to 0.35 degrees (~39km)
+            const radiusDeg = 0.05 + ((i % 5) * 0.05) + ((i % 3) * 0.02); 
+            const lat = centerCoords[0] + Math.sin(angle) * radiusDeg;
+            const lng = centerCoords[1] + Math.cos(angle) * radiusDeg;
+            
+            const bloodType = bloodTypes[i % 4];
+            const rhesus = rhesuses[(i + Math.floor(i / 4)) % 2];
+            
+            simulatedDonors.push({
+              id: `sim-donor-${provKey}-${i}`,
+              type: 'donor',
+              location: `Pendonor Siaga (${provinceShortNames[provKey] || provKey.toUpperCase()})`,
+              bloodType: `${bloodType}${rhesus}`,
+              urgency: 'Sedia',
+              bags_needed: 1,
+              time_ago: new Date(Date.now() - (i * 3 * 3600 * 1000)).toISOString(),
+              position: [lat, lng],
+              lat: lat,
+              lng: lng
+            });
+          }
+        });
+
+        const combined = [...seekers, ...donors, ...simulatedDonors];
         setDbSignals(combined);
       } catch (err) {
         console.error('Error fetching map signals:', err);
@@ -723,12 +1184,21 @@ export default function MapComponent({
         );
         if (res.ok && isMounted) {
           const data = await res.json();
-          // Filter out hospitals that already have active signals
-          const activeKeys = new Set(activeHospitalsMap.map((ah: any) => ah.kode_rs || ah.nama));
+          // Filter out hospitals that already have active signals (by name or location proximity)
+          const activeKeys = new Set(activeHospitalsMap.map((ah: any) => (ah.nama || '').toLowerCase().trim()));
           setInactiveHospitals(
-            (Array.isArray(data) ? data : []).filter(
-              (h: any) => !activeKeys.has(h.kode_rs || h.nama)
-            ).slice(0, 40) // Hard cap: never more than 40 markers
+            (Array.isArray(data) ? data : []).filter((h: any) => {
+              const normName = (h.nama || '').toLowerCase().trim();
+              if (activeKeys.has(normName)) return false;
+
+              const isNearActive = activeHospitalsMap.some((ah: any) => 
+                Math.abs(ah.latitude - h.latitude) < 0.0001 && 
+                Math.abs(ah.longitude - h.longitude) < 0.0001
+              );
+              if (isNearActive) return false;
+
+              return true;
+            }).slice(0, 40) // Hard cap: never more than 40 markers
           );
         }
       } catch (err) {
@@ -785,11 +1255,16 @@ export default function MapComponent({
     setActiveSearchQuery('');
   };
 
-  // Determine geolocator offset based on Mode Seeker (which has wider 400px/25rem sidebar) vs Mode Donor (384px/24rem sidebar)
-  // If sidebar is closed or on mobile screen, we fallback to left-6
-  const geolocateLeftClass = sidebarOpen 
-    ? (onMapClick ? "left-6 md:left-[26.5rem]" : "left-6 md:left-[25.5rem]")
-    : "left-6";
+  // Determine geolocator and legend offset dynamically to float above mobile bottom drawer (h-[55vh])
+  const geolocateBtnClass = sidebarOpen 
+    ? (onMapClick 
+        ? "bottom-[calc(55vh+2rem)] left-6 md:bottom-6 md:left-[26.5rem]" 
+        : "bottom-[calc(55vh+2rem)] left-6 md:bottom-6 md:left-[25.5rem]")
+    : "bottom-6 left-6";
+
+  const legendClass = sidebarOpen
+    ? "bottom-[calc(55vh+2rem)] right-6 md:bottom-6 md:right-6"
+    : "bottom-6 right-6";
 
   return (
     <div data-no-translate="true" className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0 will-change-transform">
@@ -831,7 +1306,7 @@ export default function MapComponent({
           <button 
             ref={preventLeafletPropagation}
             onClick={() => handleDetectLocation(false)}
-            className={`absolute bottom-6 ${geolocateLeftClass} z-[1000] w-12 h-12 bg-white dark:bg-slate-900 text-primary border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-rose-600 transition-all hover:scale-110 active:scale-95 shadow-2xl flex items-center justify-center`}
+            className={`absolute ${geolocateBtnClass} z-[1000] w-12 h-12 bg-white dark:bg-slate-900 text-primary border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-rose-600 transition-all hover:scale-110 active:scale-95 shadow-2xl flex items-center justify-center transition-all duration-300`}
             title="Deteksi Lokasi Saya"
           >
             <Crosshair className="w-5 h-5 animate-pulse" />
@@ -853,12 +1328,13 @@ export default function MapComponent({
         zoomAnimation={false}
         fadeAnimation={false}
       >
-        <ChangeView center={center} zoom={zoom} />
+        <ChangeView center={center} zoom={zoom} recenterTrigger={recenterTrigger} />
         
         {/* Click events handler for positioning hospital pin and saving last drag */}
         {!preview && (
           <MapEventsHandler 
             onMapClick={onMapClick} 
+            onBoundsChange={handleBoundsChange}
             onMapMove={(lat, lng, z) => {
               // Write to refs — no React state update, no re-render during pan.
               mapCenterRef.current = [lat, lng];
@@ -948,246 +1424,93 @@ export default function MapComponent({
         {/* Render grouped active hospital markers (seekers & donors) */}
         {activeHospitalsMap
           .filter(h => {
-            const d = Math.pow(h.latitude - mapCenterRef.current[0], 2) + Math.pow(h.longitude - mapCenterRef.current[1], 2);
-            const mapZoom = mapZoomRef.current;
-            if (mapZoom < 8) return true;
-            if (mapZoom >= 11) return d < 0.04;
-            if (mapZoom >= 10) return d < 0.12;
-            if (mapZoom >= 9) return d < 0.45;
-            return d < 1.8;
+            // Viewport bounds filtering: only render if visible on screen
+            if (mapBoundsRef.current) {
+              return mapBoundsRef.current.contains([h.latitude, h.longitude]);
+            }
+            return true;
           })
           .map((h) => {
             const seekerCount = h.seekers?.length || 0;
             const donorCount = h.donors?.length || 0;
             const isRed = seekerCount > 0;
-            const color = isRed ? '#ef4444' : '#10b981';
-
-            const popupContent = (
-              <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-                <div className="font-sans px-1 py-1 min-w-[180px]">
-                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
-                    <span>🏥 Rumah Sakit</span>
-                    {seekerCount > 0 && <span className="text-rose-500 font-extrabold">(Ada Pemohon)</span>}
-                    {seekerCount === 0 && donorCount > 0 && <span className="text-emerald-500 font-extrabold">(Ada Pendonor)</span>}
-                  </div>
-                  <div className="font-black text-sm text-slate-900 leading-tight">{h.nama}</div>
-                  <div className="text-[10px] text-slate-500 mt-1.5 font-bold space-y-0.5">
-                    {seekerCount > 0 && <div>🔴 {seekerCount} Pemohon Darah Aktif</div>}
-                    {donorCount > 0 && <div>🟢 {donorCount} Pendonor Siaga</div>}
-                  </div>
-                  
-                  {seekerCount > 0 && (
-                    <div className="mt-2.5 flex flex-wrap gap-1">
-                      {h.seekers.map((r: any, idx: number) => (
-                        <span key={idx} className="px-1.5 py-0.5 bg-rose-50 text-rose-700 text-[9px] font-bold rounded-md border border-rose-100">
-                          {r.bloodType} ({r.urgency})
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="text-[8px] text-slate-400 mt-2.5 font-semibold italic">
-                    *Klik untuk melihat daftar lengkap di panel kiri.
-                  </p>
-                </div>
-              </Popup>
-            );
-
-            // At zoom < 16, use canvas-rendered CircleMarker for smooth panning.
-            if (mapZoomRef.current < 16) {
-              const radiusSize = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : (mapZoomRef.current < 15 ? 9 : 12));
-              return (
-                <CircleMarker
-                  key={h.kode_rs || h.nama}
-                  center={[h.latitude, h.longitude]}
-                  radius={radiusSize}
-                  pathOptions={{
-                    fillColor: color,
-                    color: '#ffffff',
-                    weight: 1.5,
-                    fillOpacity: 1
-                  }}
-                  eventHandlers={{
-                    click: () => {
-                      if (onHospitalSelect) {
-                        onHospitalSelect(h.nama);
-                      }
-                    }
-                  }}
-                >
-                  {popupContent}
-                </CircleMarker>
-              );
-            }
-
-            // zoom >= 15: Full premium pulsing 42px hospital building SVG icon
-            // Use cached icon to avoid creating a new L.divIcon object on every render.
+            const color = isRed ? '#ef4444' : '#64748b';
             const hospitalMarkerIcon = getHospitalMarkerIcon(seekerCount, color);
 
             return (
-              <Marker
+              <ActiveHospitalMarker
                 key={h.kode_rs || h.nama}
-                position={[h.latitude, h.longitude]}
+                h={h}
                 icon={hospitalMarkerIcon}
-                eventHandlers={{
-                  click: () => {
-                    if (onHospitalSelect) {
-                      onHospitalSelect(h.nama);
-                    }
-                  }
-                }}
-              >
-                {popupContent}
-              </Marker>
+                seekerCount={seekerCount}
+                donorCount={donorCount}
+                language={language}
+                onHospitalSelect={onHospitalSelect}
+              />
             );
           })}
 
         {/* Free-roaming Donor markers — independent of hospitals */}
         {activeDonors
           .filter(d => {
-            const dist2 = Math.pow(d.lat - mapCenterRef.current[0], 2) + Math.pow(d.lng - mapCenterRef.current[1], 2);
-            const mapZoom = mapZoomRef.current;
-            if (mapZoom < 8) return true;
-            if (mapZoom >= 11) return dist2 < 0.04;
-            if (mapZoom >= 10) return dist2 < 0.12;
-            if (mapZoom >= 9) return dist2 < 0.45;
-            return dist2 < 1.8;
+            // Viewport bounds filtering: only render if visible on screen
+            if (mapBoundsRef.current) {
+              return mapBoundsRef.current.contains([d.lat, d.lng]);
+            }
+            return true;
           })
           .map(d => {
-            // zoom >= 16: use full divIcon donor marker.
-            if (mapZoomRef.current < 16) {
-              const r = mapZoomRef.current < 8 ? 3.5 : (mapZoomRef.current < 11 ? 6 : (mapZoomRef.current < 15 ? 9 : 12));
-              return (
-                <CircleMarker
-                  key={d.id}
-                  center={[d.lat, d.lng]}
-                  radius={r}
-                  pathOptions={{
-                    fillColor: '#10b981',
-                    color: '#ffffff',
-                    weight: 1.5,
-                    fillOpacity: 1
-                  }}
-                >
-                  <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-                    <div className="font-sans px-1 py-1 min-w-[160px]">
-                      <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 mb-1">🟢 Pendonor Siaga</div>
-                      <div className="font-black text-sm text-slate-900">{d.bloodType}</div>
-                      <div className="text-[9px] text-slate-400 mt-1">{d.location}</div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            }
             return (
-              <Marker
+              <DonorMarker
                 key={d.id}
-                position={[d.lat, d.lng]}
+                d={d}
                 icon={donorIcon}
-              >
-                <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-                  <div className="font-sans px-1 py-1 min-w-[160px]">
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-500 mb-1">🟢 Pendonor Siaga</div>
-                    <div className="font-black text-sm text-slate-900">{d.bloodType}</div>
-                    <div className="text-[9px] text-slate-400 mt-0.5 font-semibold">{d.location}</div>
-                    {d.time_ago && (
-                      <div className="text-[8px] text-slate-400 mt-1">{getTimeAgo(d.time_ago, language)}</div>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
+                language={language}
+              />
             );
           })
         }
 
         {/* Render nearby inactive hospitals when zoomed in (>=14 only, max 40) */}
-        {inactiveHospitals.map((h) => {
-          const popupContent = (
-            <Popup className="rounded-xl overflow-hidden shadow-xl border-none">
-              <div className="font-sans px-1 py-1 max-w-[180px]">
-                <div className="text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
-                  🏥 Rumah Sakit (Siaga)
-                </div>
-                <div className="font-bold text-xs text-slate-800 leading-tight mb-1">{h.nama}</div>
-                <div className="text-[9px] text-slate-400 font-semibold truncate">{h.alamat}</div>
-                <div className="text-[9px] text-slate-400 font-extrabold uppercase mt-1">{h.wilayah}</div>
-                <div className="text-[8px] text-slate-500 font-bold mt-2">
-                  *Belum ada aktivitas sinyal di sini.
-                </div>
-              </div>
-            </Popup>
-          );
-
-          // At zoom < 16, render inactive hospitals as Canvas CircleMarker to avoid DOM load
-          if (mapZoomRef.current < 16) {
-            const radiusSize = mapZoomRef.current < 15 ? 4.5 : 7;
+        {inactiveHospitals
+          .filter(h => {
+            if (mapBoundsRef.current) {
+              return mapBoundsRef.current.contains([h.latitude, h.longitude]);
+            }
+            return true;
+          })
+          .map((h) => {
             return (
-              <CircleMarker
+              <InactiveHospitalMarker
                 key={h.kode_rs || h.nama}
-                center={[h.latitude, h.longitude]}
-                radius={radiusSize}
-                pathOptions={{
-                  fillColor: '#94a3b8',
-                  color: '#ffffff',
-                  weight: 1.2,
-                  fillOpacity: 0.85
-                }}
-                eventHandlers={{
-                  click: () => {
-                    if (onMapClick) {
-                      onMapClick(h.latitude, h.longitude);
-                    }
-                  }
-                }}
-              >
-                {popupContent}
-              </CircleMarker>
+                h={h}
+                icon={INACTIVE_HOSPITAL_ICON}
+                language={language}
+                onMapClick={onMapClick}
+              />
             );
-          }
-
-          return (
-            <Marker
-              key={h.kode_rs || h.nama}
-              position={[h.latitude, h.longitude]}
-              icon={INACTIVE_HOSPITAL_ICON}
-              eventHandlers={{
-                click: () => {
-                  if (onMapClick) {
-                    onMapClick(h.latitude, h.longitude);
-                  }
-                }
-              }}
-            >
-              {popupContent}
-            </Marker>
-          );
-        })}
+          })}
       </MapContainer>
       
       {!preview && (
         /* Legend Overlay - absolute bottom right - ref stops events propagation */
         <div 
           ref={preventLeafletPropagation}
-          className="absolute bottom-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl"
+          className={`absolute ${legendClass} z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl transition-all duration-300`}
         >
           <div className="flex items-center gap-3">
-            {currentZoom >= 16 ? (
-              <div className="relative w-6 h-6 flex items-center justify-center shrink-0">
-                <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-red-500 shadow-sm flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 6V2"/>
-                    <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                    <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                    <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                    <path d="M16 14H8"/>
-                    <path d="M12 10v8"/>
-                  </svg>
-                </div>
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border border-white animate-pulse" />
+            <div className="w-6 h-6 flex items-center justify-center shrink-0">
+              <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-red-500 shadow-sm flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 6V2"/>
+                  <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                  <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                  <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                  <path d="M16 14H8"/>
+                  <path d="M12 10v8"/>
+                </svg>
               </div>
-            ) : (
-              <span className="w-3.5 h-3.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)] border-2 border-white shrink-0" />
-            )}
+            </div>
             <span className="text-slate-700 dark:text-slate-200">
               {language === "en" ? "Emergency Blood Request" : "Sinyal Darurat (Butuh Darah)"}
             </span>
@@ -1207,48 +1530,38 @@ export default function MapComponent({
             </span>
           </div>
 
-          {currentZoom >= 14 && (
-            <div className="flex items-center gap-3">
-              {currentZoom >= 16 ? (
-                <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                  <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-slate-400 shadow-sm flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 6V2"/>
-                      <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                      <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                      <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                      <path d="M16 14H8"/>
-                      <path d="M12 10v8"/>
-                    </svg>
-                  </div>
-                </div>
-              ) : (
-                <span className="w-3.5 h-3.5 rounded-full bg-slate-400 border-2 border-white shadow-sm shrink-0" />
-              )}
-              <span className="text-slate-700 dark:text-slate-200">
-                {language === "en" ? "Hospital on Alert (Inactive)" : "Rumah Sakit Siaga"}
-              </span>
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 flex items-center justify-center shrink-0">
+              <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-slate-500 shadow-sm flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 6V2"/>
+                  <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                  <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                  <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                  <path d="M16 14H8"/>
+                  <path d="M12 10v8"/>
+                </svg>
+              </div>
             </div>
-          )}
+            <span className="text-slate-700 dark:text-slate-200">
+              {language === "en" ? "Hospital on Alert (Inactive)" : "Rumah Sakit Siaga"}
+            </span>
+          </div>
 
           {selectedHospitalPosition && (
             <div className="flex items-center gap-3">
-              {currentZoom >= 16 ? (
-                <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                  <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-amber-500 shadow-sm flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 6V2"/>
-                      <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                      <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                      <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                      <path d="M16 14H8"/>
-                      <path d="M12 10v8"/>
-                    </svg>
-                  </div>
+              <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-amber-500 shadow-sm flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 6V2"/>
+                    <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                    <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                    <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                    <path d="M16 14H8"/>
+                    <path d="M12 10v8"/>
+                  </svg>
                 </div>
-              ) : (
-                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm shrink-0" />
-              )}
+              </div>
               <span className="text-slate-700 dark:text-slate-200">
                 {selectedHospitalName?.toLowerCase().includes("saya") || selectedHospitalName?.toLowerCase().includes("my") || selectedHospitalName?.toLowerCase().includes("donor")
                   ? (language === "en" ? "My Ready Point" : "Titik Siaga Anda")

@@ -10,7 +10,7 @@ import { useLanguage } from "./LanguageProvider";
 // Custom Leaflet DivIcon for the center point
 const customMarkerIcon = new L.DivIcon({
   html: `<div class="relative flex h-8 w-8 items-center justify-center">
-           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-40"></span>
+           <span class="absolute inline-flex h-full w-full rounded-full bg-blue-500 opacity-40"></span>
            <div class="relative rounded-full h-6 w-6 bg-blue-600 border-2 border-white flex items-center justify-center text-white shadow-lg text-[10px] font-bold">
              📍
            </div>

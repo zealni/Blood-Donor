@@ -257,12 +257,15 @@ export default function SeekerDashboard() {
 
         {/* ═══ SIDEBAR ═══ */}
         <div
-          className={`absolute top-4 md:top-6 bottom-4 md:bottom-6 left-4 md:left-6 w-[calc(100%-2rem)] md:w-[400px] z-20 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden transition-all duration-300 ${
+          className={`absolute bottom-4 left-4 right-4 top-auto h-[55vh] w-[calc(100%-2rem)] md:top-6 md:bottom-6 md:left-6 md:right-auto md:h-auto md:w-[400px] z-20 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 pb-8 md:pb-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden transition-all duration-300 ${
             isSidebarOpen
-              ? "translate-x-0 opacity-100"
-              : "-translate-x-[120%] opacity-0 pointer-events-none"
+              ? "translate-y-0 md:translate-x-0 opacity-100"
+              : "translate-y-[120%] md:-translate-x-[120%] opacity-0 pointer-events-none"
           }`}
         >
+          {/* Mobile Drag Handle Indicator */}
+          <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4 md:hidden shrink-0" />
+
           {/* Header */}
           <div className="shrink-0 mb-4">
             <div className="flex justify-between items-center mb-3">

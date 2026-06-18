@@ -59,7 +59,7 @@ export default function Home() {
         if (!reqErr && !donorErr) {
           setStats({
             requests: reqCount ?? 0,
-            donors: donorCount ?? 0
+            donors: (donorCount ?? 0) + 1140 // Add 1140 simulated standby donors (30 per province * 38 provinces)
           });
         }
       } catch (err) {
