@@ -274,7 +274,7 @@ export default function SeekerDashboard() {
         {!isSidebarOpen && (
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className="absolute left-4 md:left-6 top-4 md:top-6 z-30 flex items-center gap-2 px-5 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-rose-200/50 dark:border-rose-900/30 rounded-full shadow-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all hover:scale-105 active:scale-95 duration-300 font-black text-xs"
+            className="absolute left-4 md:left-6 bottom-4 md:bottom-auto md:top-6 z-30 flex items-center gap-2 px-5 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-rose-200/50 dark:border-rose-900/30 rounded-full shadow-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all hover:scale-105 active:scale-95 duration-300 font-black text-xs"
           >
             <Activity className="w-4 h-4 text-primary animate-pulse" />
             <span>{language === "en" ? "Broadcast Signal" : "Pancarkan Sinyal"}</span>
@@ -303,6 +303,15 @@ export default function SeekerDashboard() {
               >
                 {language === "en" ? "← Hide Panel" : "← Sembunyikan Panel"}
               </button>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">
+                  {language === "en" ? "SEEKER MODE" : "Mode Pemohon"}
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">

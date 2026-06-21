@@ -389,7 +389,7 @@ export default function DonorDashboard() {
         {!isSidebarOpen && (
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className="absolute left-4 md:left-6 bottom-4 md:bottom-6 z-30 flex items-center gap-2 px-5 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-rose-200/50 dark:border-rose-900/30 rounded-full shadow-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all hover:scale-105 active:scale-95 duration-300 font-black text-xs"
+            className="absolute left-4 md:left-6 bottom-4 md:bottom-auto md:top-6 z-30 flex items-center gap-2 px-5 py-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-rose-200/50 dark:border-rose-900/30 rounded-full shadow-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all hover:scale-105 active:scale-95 duration-300 font-black text-xs"
           >
             <HeartHandshake className="w-4 h-4 text-primary animate-pulse" />
             <span>{language === "en" ? "Show List" : "Lihat Daftar"}</span>
@@ -428,23 +428,27 @@ export default function DonorDashboard() {
                 </div>
               </div>
 
-              {/* Compact Header Title & Mode Switcher */}
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                  <HeartHandshake className="w-4.5 h-4.5" />
+                </div>
+                <div>
                   <h1 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
                     {language === "en" ? "Nearby Donor Signals" : "Sinyal Pendonor Sekitar"}
                   </h1>
                   {activeTab === 'list' && (
-                    <p className="text-slate-400 text-[10px] mt-0.5">
+                    <p className="text-slate-400 text-[10px] font-semibold mt-0.5">
                       {language === "en"
-                        ? `${processedRequests.length} requester(s)`
+                        ? `${processedRequests.length} requester(s) around`
                         : `${processedRequests.length} pemohon di sekitar`}
                     </p>
                   )}
                 </div>
-                <div className="scale-75 origin-right">
-                  <ModeSwitcher activeMode="donor" />
-                </div>
+              </div>
+
+              {/* Mode Switcher */}
+              <div className="shrink-0 mb-4">
+                <ModeSwitcher activeMode="donor" />
               </div>
               
               {/* Tabs */}
