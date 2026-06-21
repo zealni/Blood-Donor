@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { HeartHandshake, Search, Filter, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
