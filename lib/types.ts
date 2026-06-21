@@ -45,6 +45,7 @@ export interface RequestSignal {
   time: string;
   rawTime?: string;
   requesterId: string;
+  requesterName: string;
   phone: string;
   bagsNeeded: number;
 }

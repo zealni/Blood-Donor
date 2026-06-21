@@ -70,10 +70,13 @@ export default function DonorSignalCard({
         </div>
         <div className="flex-grow min-w-0">
           <h3 className="font-black text-sm text-slate-800 dark:text-slate-200 line-clamp-1">
-            {req.hospital}
+            {req.requesterName}
           </h3>
-          <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1 mt-1">
-            <MapPin className="w-3.5 h-3.5 text-primary/70" />
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1 mt-0.5 mb-1 line-clamp-1">
+            <MapPin className="w-3 h-3 text-slate-400" />
+            {req.hospital}
+          </p>
+          <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
             {language === "en"
               ? `Distance ${req.distance} • Needs ${req.bagsNeeded} ${req.bagsNeeded === 1 ? "bag" : "bags"}`
               : `Jarak ${req.distance} • Butuh ${req.bagsNeeded} kantong`}

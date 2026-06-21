@@ -216,7 +216,7 @@ const idToEn: Record<string, string> = {
   "via WhatsApp...": "via WhatsApp...",
   "*BloodConnect melindungi privasi Anda. Nomor telepon dan kontak hanya akan dibagikan kepada pihak yang bersangkutan setelah persetujuan diberikan.": "*BloodConnect protects your privacy. Phone numbers and contacts will only be shared with the related party after approval is given.",
   "Sinyal Donor Sekitar": "Nearby Donor Signals",
-  "Tampilkan Sinyal": "Show Signals",
+  "Lihat Daftar": "Show List",
   "Sembunyikan Panel": "Hide Panel",
   "Menampilkan": "Showing",
   "pemohon": "requesters",

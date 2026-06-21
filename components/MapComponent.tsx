@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check, Map as MapIcon, Globe, Heart, Phone } from 'lucide-react';
+import { MapPin, Filter, Crosshair, Search, RotateCcw, ShieldAlert, Check, Map as MapIcon, Globe, Heart, Phone, Info, X } from 'lucide-react';
 import { useLanguage } from './LanguageProvider';
 import { createClient } from '../lib/supabase/client';
 import { 
@@ -736,6 +736,12 @@ export default function MapComponent({
   const mapViewTickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hasUserLocation, setHasUserLocation] = useState(false);
   const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
+  const [isLegendOpen, setIsLegendOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 768;
+    }
+    return true;
+  });
   const [dbSignals, setDbSignals] = useState<any[]>([]);
   const mapBoundsRef = useRef<L.LatLngBounds | null>(null);
   
@@ -1229,6 +1235,16 @@ export default function MapComponent({
       .filter((s) => s.type === 'seeker')
       .map((s) => {
         const distanceVal = getDistance(center[0], center[1], s.position[0], s.position[1]);
+        
+        // Generate deterministic name
+        const DUMMY_NAMES = [
+          "Budi Santoso", "Andi Wijaya", "Siti Aminah", "Dewi Lestari", "Rian Hidayat", 
+          "Indah Permatasari", "Eko Prasetyo", "Sri Wahyuni", "Ahmad Fauzi", "Rina Kartika",
+          "Taufik Hidayat", "Mega Lestari", "Dian Sastrowardoyo", "Reza Rahadian", "Sari Indah"
+        ];
+        const hash = String(s.id).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const name = DUMMY_NAMES[hash % DUMMY_NAMES.length];
+
         return {
           id: s.id,
           hospital: s.location,
@@ -1239,6 +1255,7 @@ export default function MapComponent({
           time: getTimeAgo(s.time_ago, language),
           rawTime: s.time_ago,
           requesterId: `user-${s.id}`,
+          requesterName: name,
           phone: s.phone || "6281122334450",
           bagsNeeded: s.bags_needed || 2
         };
@@ -1255,16 +1272,8 @@ export default function MapComponent({
     setActiveSearchQuery('');
   };
 
-  // Determine geolocator and legend offset dynamically to float above mobile bottom drawer (h-[55vh])
-  const geolocateBtnClass = sidebarOpen 
-    ? (onMapClick 
-        ? "bottom-[calc(55vh+2rem)] left-6 md:bottom-6 md:left-[26.5rem]" 
-        : "bottom-[calc(55vh+2rem)] left-6 md:bottom-6 md:left-[25.5rem]")
-    : "bottom-6 left-6";
-
-  const legendClass = sidebarOpen
-    ? "bottom-[calc(55vh+2rem)] right-6 md:bottom-6 md:right-6"
-    : "bottom-6 right-6";
+  const geolocateBtnClass = "top-[4.5rem] right-4 md:top-[5.5rem] md:right-6";
+  const legendClass = "top-[7.5rem] right-4 md:top-[9.5rem] md:right-6";
 
   return (
     <div data-no-translate="true" className="w-full h-full rounded-[2rem] overflow-hidden border-4 border-white dark:border-slate-800 shadow-2xl relative z-0 will-change-transform">
@@ -1274,7 +1283,7 @@ export default function MapComponent({
           {/* Map Layer Switcher Overlay - Premium glassmorphic buttons absolute top-right */}
           <div 
             ref={preventLeafletPropagation}
-            className="absolute top-6 right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 p-1 rounded-2xl shadow-xl flex gap-1 animate-in fade-in duration-300"
+            className="absolute top-4 right-4 md:top-6 md:right-6 z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200/50 dark:border-slate-800/50 p-1 rounded-2xl shadow-xl flex gap-1 animate-in fade-in duration-300"
           >
             <button
               type="button"
@@ -1302,14 +1311,14 @@ export default function MapComponent({
             </button>
           </div>
 
-          {/* Repositioned Manual Geolocation Button - floats right next to the left sidebar corner */}
+          {/* Repositioned Manual Geolocation Button */}
           <button 
             ref={preventLeafletPropagation}
             onClick={() => handleDetectLocation(false)}
-            className={`absolute ${geolocateBtnClass} z-[1000] w-12 h-12 bg-white dark:bg-slate-900 text-primary border border-slate-200 dark:border-slate-800 rounded-full hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-rose-600 transition-all hover:scale-110 active:scale-95 shadow-2xl flex items-center justify-center transition-all duration-300`}
+            className={`absolute ${geolocateBtnClass} z-[1000] w-10 h-10 md:w-12 md:h-12 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-primary border border-slate-200/50 dark:border-slate-800/50 rounded-2xl md:rounded-full hover:bg-white dark:hover:bg-slate-800 hover:text-rose-600 transition-all hover:scale-105 active:scale-95 shadow-xl flex items-center justify-center duration-300`}
             title="Deteksi Lokasi Saya"
           >
-            <Crosshair className="w-5 h-5 animate-pulse" />
+            <Crosshair className="w-5 h-5 md:w-5 md:h-5 animate-pulse" />
           </button>
         </>
       )}
@@ -1493,12 +1502,24 @@ export default function MapComponent({
       </MapContainer>
       
       {!preview && (
-        /* Legend Overlay - absolute bottom right - ref stops events propagation */
+        /* Legend Overlay - ref stops events propagation */
         <div 
           ref={preventLeafletPropagation}
-          className={`absolute ${legendClass} z-[1000] bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl transition-all duration-300`}
+          className={`absolute ${legendClass} z-[1000] flex flex-col items-end gap-2`}
         >
-          <div className="flex items-center gap-3">
+          {isLegendOpen ? (
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl transition-all duration-300 relative animate-in slide-in-from-bottom-2 fade-in">
+              <button 
+                onClick={() => setIsLegendOpen(false)}
+                className="absolute top-3 right-3 p-1 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 transition-colors"
+                title={language === "en" ? "Close Legend" : "Tutup Legenda"}
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <div className="pr-6 font-bold text-slate-800 dark:text-slate-100 mb-1 border-b border-slate-100 dark:border-slate-800 pb-2">
+                {language === "en" ? "Map Legend" : "Keterangan Peta"}
+              </div>
+              <div className="flex items-center gap-3">
             <div className="w-6 h-6 flex items-center justify-center shrink-0">
               <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-red-500 shadow-sm flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1568,6 +1589,16 @@ export default function MapComponent({
                   : (language === "en" ? "Selected Hospital" : "Rumah Sakit Terpilih")}
               </span>
             </div>
+          )}
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsLegendOpen(true)}
+              className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 w-10 h-10 rounded-2xl flex items-center justify-center shadow-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 animate-in fade-in"
+              title={language === "en" ? "Show Legend" : "Tampilkan Legenda"}
+            >
+              <Info className="w-5 h-5 text-slate-500" />
+            </button>
           )}
         </div>
       )}
