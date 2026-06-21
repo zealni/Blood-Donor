@@ -45,6 +45,9 @@ export default function SeekerDashboard() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
 
+  const [activeRequest, setActiveRequest] = useState<any | null>(null);
+  const [nearbyDonors, setNearbyDonors] = useState<any[]>([]);
+
   const selectedHospitalRef = useRef("");
 
   useEffect(() => {
@@ -131,7 +134,28 @@ export default function SeekerDashboard() {
       return;
     }
     try {
-      setSession(JSON.parse(storedSession));
+      const parsedSession = JSON.parse(storedSession);
+      setSession(parsedSession);
+      
+      // Fetch active request
+      const fetchActive = async () => {
+        const supabase = createClient();
+        if (supabase) {
+          const { data } = await supabase
+            .from("blood_requests")
+            .select("*")
+            .eq("seeker_id", parsedSession.id)
+            .eq("status", "open")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (data) {
+            setActiveRequest(data);
+          }
+        }
+      };
+      fetchActive();
     } catch (e) {
       console.error(e);
       router.push("/login?redirect=/radar/seeker");
@@ -185,24 +209,26 @@ export default function SeekerDashboard() {
         const lng = hospitalCoords ? hospitalCoords[1] : 110.380;
         const pointWKT = `POINT(${lng} ${lat})`;
 
-        const { error } = await supabase.from("blood_requests").insert([
-          {
-            seeker_id: session?.id || null,
-            hospital_name: hospital,
-            hospital_coord: pointWKT,
-            blood_type: bloodType,
-            rhesus: rhesus,
-            bags_needed: 2,
-            urgency: "Tinggi",
-            status: "open",
-          },
-        ]);
+        const newRequest = {
+          seeker_id: session?.id || null,
+          hospital_name: hospital,
+          hospital_coord: pointWKT,
+          blood_type: bloodType,
+          rhesus: rhesus,
+          bags_needed: 2,
+          urgency: "Tinggi",
+          status: "open",
+        };
+
+        const { data, error } = await supabase.from("blood_requests").insert([newRequest]).select().single();
 
         if (error) {
           console.error("Error inserting blood request to Supabase:", error);
           alert(`Gagal memancarkan sinyal ke database: ${error.message}`);
           setSuccess(false);
           return;
+        } else {
+          setActiveRequest(data);
         }
       }
 
@@ -212,7 +238,6 @@ export default function SeekerDashboard() {
       setHospital("");
       setNotes("");
       setHospitalCoords(null);
-      alert("Sinyal Darurat Kebutuhan Darah berhasil dipancarkan ke basis data dan pendonor terdekat!");
     } catch (err) {
       console.error(err);
       alert("Terjadi kesalahan sistem saat mengirim sinyal.");
@@ -238,6 +263,7 @@ export default function SeekerDashboard() {
           <MapComponent
             preview={false}
             onMapClick={handleMapClick}
+            onDonorsUpdate={(donors) => setNearbyDonors(donors)}
             selectedHospitalPosition={hospitalCoords}
             selectedHospitalName={hospital}
             sidebarOpen={isSidebarOpen}
@@ -300,165 +326,249 @@ export default function SeekerDashboard() {
             <ModeSwitcher activeMode="seeker" />
           </div>
 
-          {/* Form */}
-          <form className="flex-grow overflow-y-auto space-y-5 pr-1" onSubmit={handleSubmit}>
-            <BloodStockWidget userProvince={userProvince} onProvinceChange={setUserProvince} />
+            {/* Form vs Active Request View */}
+            {!activeRequest ? (
+              <form className="flex-grow overflow-y-auto space-y-5 pr-1" onSubmit={handleSubmit}>
+                <BloodStockWidget userProvince={userProvince} onProvinceChange={setUserProvince} />
 
-            {/* Blood Type */}
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                {language === "en" ? "Blood Type" : "Golongan Darah"}
-              </label>
-              <div className="grid grid-cols-4 gap-2">
-                {["A", "B", "AB", "O"].map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setBloodType(type)}
-                    className={`py-2 rounded-xl border-2 font-black text-sm transition-all ${
-                      bloodType === type
-                        ? "border-primary bg-primary/5 text-primary shadow-sm"
-                        : "border-slate-100 dark:border-slate-800 text-slate-500 bg-slate-50/50 dark:bg-slate-950/20 hover:border-slate-200 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Rhesus */}
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                {language === "en" ? "Rhesus" : "Rhesus"}
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {["+", "-"].map((type) => (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => setRhesus(type)}
-                    className={`py-2 rounded-xl border-2 font-bold text-xs transition-all ${
-                      rhesus === type
-                        ? "border-primary bg-primary/5 text-primary shadow-sm"
-                        : "border-slate-100 dark:border-slate-800 text-slate-500 bg-slate-50/50 dark:bg-slate-950/20 hover:border-slate-200 dark:hover:border-slate-700"
-                    }`}
-                  >
-                    {type === "+"
-                      ? language === "en" ? "Rhesus Positive (+)" : "Rhesus Positif (+)"
-                      : language === "en" ? "Rhesus Negative (-)" : "Rhesus Negatif (-)"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Hospital/Location */}
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                {language === "en" ? "Hospital / Location" : "Rumah Sakit / Lokasi"}
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={hospital}
-                  onChange={(e) => setHospital(e.target.value)}
-                  onFocus={() => {
-                    if (suggestions.length > 0) setShowSuggestions(true);
-                  }}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                  placeholder={
-                    language === "en" ? "Type Hospital Name..." : "Ketik Nama Rumah Sakit..."
-                  }
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
-                />
-                
-                {/* Suggestions Dropdown */}
-                {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
-                    {suggestions.map((item) => (
+                {/* Blood Type */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === "en" ? "Blood Type" : "Golongan Darah"}
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {["A", "B", "AB", "O"].map((type) => (
                       <button
-                        key={item.kode_rs}
+                        key={type}
                         type="button"
-                        onClick={() => handleSelectSuggestion(item)}
-                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col gap-0.5"
+                        onClick={() => setBloodType(type)}
+                        className={`py-2 rounded-xl border-2 font-black text-sm transition-all ${
+                          bloodType === type
+                            ? "border-primary bg-primary/5 text-primary shadow-sm"
+                            : "border-slate-100 dark:border-slate-800 text-slate-500 bg-slate-50/50 dark:bg-slate-950/20 hover:border-slate-200 dark:hover:border-slate-700"
+                        }`}
                       >
-                        <span className="font-bold text-xs text-slate-900 dark:text-white">
-                          {item.nama}
-                        </span>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium line-clamp-1">
-                          {item.alamat || item.wilayah}
-                        </span>
-                        <span className="text-[9px] text-primary/80 dark:text-rose-400 font-semibold uppercase tracking-wider mt-0.5">
-                          {item.wilayah}
-                        </span>
+                        {type}
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-xl">
-                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                  {language === "en"
-                    ? "📍 Hospital GPS Coordinates"
-                    : "📍 Koordinat GPS Rumah Sakit"}
-                </span>
-                {hospitalCoords ? (
-                  <span className="text-xs font-black text-primary animate-pulse">
-                    Lat: {hospitalCoords[0].toFixed(5)}, Lng: {hospitalCoords[1].toFixed(5)}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-400 leading-normal font-semibold block">
+                {/* Rhesus */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === "en" ? "Rhesus" : "Rhesus"}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["+", "-"].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRhesus(type)}
+                        className={`py-2 rounded-xl border-2 font-bold text-xs transition-all ${
+                          rhesus === type
+                            ? "border-primary bg-primary/5 text-primary shadow-sm"
+                            : "border-slate-100 dark:border-slate-800 text-slate-500 bg-slate-50/50 dark:bg-slate-950/20 hover:border-slate-200 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        {type === "+"
+                          ? language === "en" ? "Rhesus Positive (+)" : "Rhesus Positif (+)"
+                          : language === "en" ? "Rhesus Negative (-)" : "Rhesus Negatif (-)"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hospital/Location */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === "en" ? "Hospital / Location" : "Rumah Sakit / Lokasi"}
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      value={hospital}
+                      onChange={(e) => setHospital(e.target.value)}
+                      onFocus={() => {
+                        if (suggestions.length > 0) setShowSuggestions(true);
+                      }}
+                      onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                      placeholder={
+                        language === "en" ? "Type Hospital Name..." : "Ketik Nama Rumah Sakit..."
+                      }
+                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
+                    />
+                    
+                    {/* Suggestions Dropdown */}
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 mt-1.5 max-h-60 overflow-y-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
+                        {suggestions.map((item) => (
+                          <button
+                            key={item.kode_rs}
+                            type="button"
+                            onClick={() => handleSelectSuggestion(item)}
+                            className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col gap-0.5"
+                          >
+                            <span className="font-bold text-xs text-slate-900 dark:text-white">
+                              {item.nama}
+                            </span>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium line-clamp-1">
+                              {item.alamat || item.wilayah}
+                            </span>
+                            <span className="text-[9px] text-primary/80 dark:text-rose-400 font-semibold uppercase tracking-wider mt-0.5">
+                              {item.wilayah}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-xl">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                      {language === "en"
+                        ? "📍 Hospital GPS Coordinates"
+                        : "📍 Koordinat GPS Rumah Sakit"}
+                    </span>
+                    {hospitalCoords ? (
+                      <span className="text-xs font-black text-primary animate-pulse">
+                        Lat: {hospitalCoords[0].toFixed(5)}, Lng: {hospitalCoords[1].toFixed(5)}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400 leading-normal font-semibold block">
+                        {language === "en"
+                          ? "💡 Click on the hospital area on the map to pin the GPS location precisely."
+                          : "💡 Klik area rumah sakit di peta sebelah kanan untuk menandai lokasi GPS secara presisi."}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div className="space-y-2">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    {language === "en" ? "Additional Notes" : "Catatan Tambahan"}
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder={
+                      language === "en"
+                        ? "Example: Need 2 bags, urgently in ICU room."
+                        : "Contoh: Butuh 2 kantong, segera di IGD Dr. Sardjito."
+                    }
+                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium min-h-[80px]"
+                  />
+                </div>
+
+                <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-900/30 rounded-2xl p-4 flex gap-2.5 text-orange-600 dark:text-orange-400 text-[10px] font-semibold leading-relaxed">
+                  <AlertCircle className="w-4.5 h-4.5 shrink-0" />
+                  <p>
                     {language === "en"
-                      ? "💡 Click on the hospital area on the map to pin the GPS location precisely."
-                      : "💡 Klik area rumah sakit di peta sebelah kanan untuk menandai lokasi GPS secara presisi."}
-                  </span>
-                )}
+                      ? "Ensure medical information is filled in correctly. Donors will respond based on your blood type and hospital coordinate."
+                      : "Pastikan informasi medis diisi dengan benar. Pendonor akan merespon berdasarkan golongan darah dan titik koordinat RS Anda."}
+                  </p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={success}
+                  className="w-full py-3.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/95 transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-75"
+                >
+                  {success ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      {language === "en" ? "Broadcast SOS Signal" : "Pancarkan Sinyal Sos"}
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="flex-grow overflow-y-auto space-y-4 pr-1 flex flex-col pb-4">
+                {/* Active Request Details */}
+                <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                        Status Permintaan
+                      </h3>
+                      <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                        Menunggu respon dari pendonor
+                      </p>
+                    </div>
+                    <div className="bg-primary text-white text-[10px] font-black px-2 py-1 rounded-md">
+                      {activeRequest.blood_type}{activeRequest.rhesus}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/50 dark:bg-slate-900/50 rounded-xl p-3 border border-slate-100 dark:border-slate-800">
+                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 line-clamp-1">
+                      {activeRequest.hospital_name}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      const supabase = createClient();
+                      if (supabase) {
+                        await supabase.from("blood_requests").update({ status: 'fulfilled' }).eq('id', activeRequest.id);
+                        setActiveRequest(null);
+                        alert("Permintaan berhasil ditutup.");
+                      }
+                    }}
+                    className="w-full py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold text-[11px] hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors"
+                  >
+                    Selesaikan Permintaan
+                  </button>
+                </div>
+
+                {/* Nearby Donors List */}
+                <div className="flex-grow flex flex-col">
+                  <h4 className="font-bold text-xs text-slate-900 dark:text-white mb-3 px-1 uppercase tracking-wider flex items-center justify-between">
+                    <span>Pendonor Siaga Terdekat</span>
+                    <span className="bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded text-[10px] font-black">
+                      {nearbyDonors.length}
+                    </span>
+                  </h4>
+                  
+                  <div className="space-y-2 flex-grow overflow-y-auto min-h-0 pr-1">
+                    {nearbyDonors.length === 0 ? (
+                      <div className="py-6 text-center text-slate-400 text-xs font-semibold">
+                        Mencari pendonor di sekitar...
+                      </div>
+                    ) : (
+                      nearbyDonors.map((donor) => (
+                        <div key={donor.id} className="bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800/50 rounded-xl p-3 flex items-center justify-between hover:border-emerald-200 dark:hover:border-emerald-900 transition-colors cursor-pointer">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center border border-emerald-100 dark:border-emerald-800 flex-shrink-0">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-black text-sm">
+                                {donor.bloodType}
+                              </span>
+                            </div>
+                            <div className="min-w-0">
+                              <h5 className="font-bold text-slate-900 dark:text-white text-[11px] truncate">
+                                {donor.name}
+                              </h5>
+                              <p className="text-[10px] text-slate-500 font-medium truncate">
+                                Jarak {donor.distance}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-50 dark:bg-emerald-950 px-2 py-1 rounded-md whitespace-nowrap">
+                              {donor.urgency}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                {language === "en" ? "Additional Notes" : "Catatan Tambahan"}
-              </label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={
-                  language === "en"
-                    ? "Example: Need 2 bags, urgently in ICU room."
-                    : "Contoh: Butuh 2 kantong, segera di IGD Dr. Sardjito."
-                }
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium min-h-[80px]"
-              />
-            </div>
-
-            <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200/50 dark:border-orange-900/30 rounded-2xl p-4 flex gap-2.5 text-orange-600 dark:text-orange-400 text-[10px] font-semibold leading-relaxed">
-              <AlertCircle className="w-4.5 h-4.5 shrink-0" />
-              <p>
-                {language === "en"
-                  ? "Ensure medical information is filled in correctly. Donors will respond based on your blood type and hospital coordinate."
-                  : "Pastikan informasi medis diisi dengan benar. Pendonor akan merespon berdasarkan golongan darah dan titik koordinat RS Anda."}
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={success}
-              className="w-full py-3.5 bg-primary text-white rounded-xl font-bold text-sm hover:bg-primary/95 transition-all active:scale-[0.98] flex justify-center items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-75"
-            >
-              {success ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  {language === "en" ? "Broadcast SOS Signal" : "Pancarkan Sinyal Sos"}
-                </>
-              )}
-            </button>
-          </form>
+            )}
         </div>
       </div>
     </div>

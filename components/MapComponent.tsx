@@ -689,6 +689,8 @@ DonorMarker.displayName = 'DonorMarker';
 interface MapComponentProps {
   preview?: boolean; // If true, hides controls/filter panel (for landing page preview)
   onMapClick?: (lat: number, lng: number) => void; // Click handler to select coordinates
+  onSignalsUpdate?: (signals: any[]) => void;
+  onDonorsUpdate?: (donors: any[]) => void;
   selectedHospitalPosition?: [number, number] | null; // Currently pinned position for seekers
   selectedHospitalName?: string;
   highlightedSignalId?: number | null; // ID of the signal to focus on
@@ -699,13 +701,14 @@ interface MapComponentProps {
   onSearchQueryChange?: (val: string) => void;
   externalFilterBloodType?: string;
   externalFilterUrgency?: string;
-  onSignalsUpdate?: (signals: any[]) => void;
   onHospitalSelect?: (hospitalName: string | null) => void; // Filter list on map pin click
 }
 
 export default function MapComponent({
   preview = false,
   onMapClick,
+  onSignalsUpdate,
+  onDonorsUpdate,
   selectedHospitalPosition,
   selectedHospitalName = "Titik Rumah Sakit Pilihan",
   highlightedSignalId,
@@ -716,7 +719,6 @@ export default function MapComponent({
   onSearchQueryChange,
   externalFilterBloodType = "all",
   externalFilterUrgency = "all",
-  onSignalsUpdate,
   onHospitalSelect
 }: MapComponentProps) {
   const { language } = useLanguage();
@@ -738,9 +740,9 @@ export default function MapComponent({
   const [mapMode, setMapMode] = useState<'streets' | 'satellite'>('streets');
   const [isLegendOpen, setIsLegendOpen] = useState(() => {
     if (typeof window !== "undefined") {
-      return window.innerWidth >= 768;
+      return window.innerWidth >= 1024;
     }
-    return true;
+    return false;
   });
   const [dbSignals, setDbSignals] = useState<any[]>([]);
   const mapBoundsRef = useRef<L.LatLngBounds | null>(null);
@@ -1264,8 +1266,31 @@ export default function MapComponent({
     // Sort by distance (closest to furthest)
     seekerRequests.sort((a, b) => a.distanceNum - b.distanceNum);
 
-    onSignalsUpdate(seekerRequests);
-  }, [filteredSignals, center, onSignalsUpdate, preview, language]);
+    if (onSignalsUpdate) {
+      onSignalsUpdate(seekerRequests);
+    }
+
+    if (onDonorsUpdate) {
+      const donorSignals = filteredSignals
+        .filter((s) => s.type === 'donor')
+        .map((s) => {
+          const distanceVal = getDistance(center[0], center[1], s.position[0], s.position[1]);
+          return {
+            id: s.id,
+            name: s.location || "Pendonor Siaga",
+            bloodType: s.bloodType,
+            distance: `${distanceVal.toFixed(1)} km`,
+            distanceNum: distanceVal,
+            time: getTimeAgo(s.time_ago, language),
+            rawTime: s.time_ago,
+            urgency: s.urgency
+          };
+        });
+      
+      donorSignals.sort((a, b) => a.distanceNum - b.distanceNum);
+      onDonorsUpdate(donorSignals);
+    }
+  }, [filteredSignals, center, onSignalsUpdate, onDonorsUpdate, preview, language]);
 
   const handleResetFilters = () => {
     setActiveRadius(0);
@@ -1508,88 +1533,73 @@ export default function MapComponent({
           className={`absolute ${legendClass} z-[1000] flex flex-col items-end gap-2`}
         >
           {isLegendOpen ? (
-            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3 text-xs font-semibold shadow-xl transition-all duration-300 relative animate-in slide-in-from-bottom-2 fade-in">
+            <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 p-4 rounded-3xl flex flex-col gap-3.5 text-[11px] font-semibold shadow-xl transition-all duration-300 relative animate-in slide-in-from-bottom-2 fade-in min-w-[220px]">
               <button 
                 onClick={() => setIsLegendOpen(false)}
-                className="absolute top-3 right-3 p-1 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 transition-colors"
+                className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 transition-colors"
                 title={language === "en" ? "Close Legend" : "Tutup Legenda"}
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
-              <div className="pr-6 font-bold text-slate-800 dark:text-slate-100 mb-1 border-b border-slate-100 dark:border-slate-800 pb-2">
+              <div className="pr-6 font-black text-[11px] text-slate-800 dark:text-slate-100 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 pb-2.5">
                 {language === "en" ? "Map Legend" : "Keterangan Peta"}
               </div>
-              <div className="flex items-center gap-3">
-            <div className="w-6 h-6 flex items-center justify-center shrink-0">
-              <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-red-500 shadow-sm flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 6V2"/>
-                  <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                  <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                  <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                  <path d="M16 14H8"/>
-                  <path d="M12 10v8"/>
-                </svg>
-              </div>
-            </div>
-            <span className="text-slate-700 dark:text-slate-200">
-              {language === "en" ? "Emergency Blood Request" : "Sinyal Darurat (Butuh Darah)"}
-            </span>
-          </div>
+              
+              <div className="flex flex-col gap-3.5">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    <div className="w-5 h-5 rounded-full bg-white border-2 border-red-500 shadow-sm flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 6V2"/>
+                        <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                        <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                        <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                        <path d="M16 14H8"/>
+                        <path d="M12 10v8"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <span className="text-slate-700 dark:text-slate-200 leading-tight">
+                    {language === "en" ? "Emergency Blood Request" : "Sinyal Darurat (Butuh Darah)"}
+                  </span>
+                </div>
 
-          <div className="flex items-center gap-3">
-            <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm shrink-0" />
-            <span className="text-slate-700 dark:text-slate-200">
-              {language === "en" ? "Ready Donors" : "Pendonor Siaga"}
-            </span>
-          </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm" />
+                  </div>
+                  <span className="text-slate-700 dark:text-slate-200 leading-tight">
+                    {language === "en" ? "Ready Donors" : "Pendonor Siaga"}
+                  </span>
+                </div>
 
-          <div className="flex items-center gap-3">
-            <span className="w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm shrink-0" />
-            <span className="text-slate-700 dark:text-slate-200">
-              {language === "en" ? "Radar Center (My Location)" : "Pusat Radar (Lokasi Anda)"}
-            </span>
-          </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    <span className="w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm" />
+                  </div>
+                  <span className="text-slate-700 dark:text-slate-200 leading-tight">
+                    {language === "en" ? "Radar Center (My Location)" : "Pusat Radar (Lokasi Anda)"}
+                  </span>
+                </div>
 
-          <div className="flex items-center gap-3">
-            <div className="w-6 h-6 flex items-center justify-center shrink-0">
-              <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-slate-500 shadow-sm flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 6V2"/>
-                  <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                  <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                  <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                  <path d="M16 14H8"/>
-                  <path d="M12 10v8"/>
-                </svg>
-              </div>
-            </div>
-            <span className="text-slate-700 dark:text-slate-200">
-              {language === "en" ? "Hospital on Alert (Inactive)" : "Rumah Sakit Siaga"}
-            </span>
-          </div>
-
-          {selectedHospitalPosition && (
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                <div className="w-5.5 h-5.5 rounded-full bg-white border-2 border-amber-500 shadow-sm flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 6V2"/>
-                    <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
-                    <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
-                    <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
-                    <path d="M16 14H8"/>
-                    <path d="M12 10v8"/>
-                  </svg>
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
+                    <div className="w-5 h-5 rounded-full bg-white border-2 border-slate-500 shadow-sm flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 6V2"/>
+                        <path d="M4.72 16H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1h1.72"/>
+                        <path d="M19.28 16H21a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1h-1.72"/>
+                        <path d="M18 22V7a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v15"/>
+                        <path d="M16 14H8"/>
+                        <path d="M12 10v8"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <span className="text-slate-700 dark:text-slate-200 leading-tight">
+                    {language === "en" ? "Hospital on Alert (Inactive)" : "Rumah Sakit Siaga"}
+                  </span>
                 </div>
               </div>
-              <span className="text-slate-700 dark:text-slate-200">
-                {selectedHospitalName?.toLowerCase().includes("saya") || selectedHospitalName?.toLowerCase().includes("my") || selectedHospitalName?.toLowerCase().includes("donor")
-                  ? (language === "en" ? "My Ready Point" : "Titik Siaga Anda")
-                  : (language === "en" ? "Selected Hospital" : "Rumah Sakit Terpilih")}
-              </span>
-            </div>
-          )}
             </div>
           ) : (
             <button

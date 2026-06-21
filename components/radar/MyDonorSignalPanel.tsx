@@ -43,70 +43,6 @@ export default function MyDonorSignalPanel({
   const [isBloodTypeDropdownOpen, setIsBloodTypeDropdownOpen] = useState(false);
   const bloodTypeDropdownRef = useRef<HTMLDivElement>(null);
 
-  const [hospitalSearch, setHospitalSearch] = useState("");
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [resolvedHospitalName, setResolvedHospitalName] = useState("");
-
-  // Resolve myCoords to nearest hospital name on mount/update
-  useEffect(() => {
-    if (!myCoords) {
-      setResolvedHospitalName("");
-      setHospitalSearch("");
-      return;
-    }
-    
-    let isMounted = true;
-    async function resolveCoords() {
-      try {
-        const res = await fetch(`/api/hospitals?lat=${myCoords![0]}&lng=${myCoords![1]}`);
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          if (data && data.nama) {
-            setResolvedHospitalName(data.nama);
-            setHospitalSearch(data.nama);
-          }
-        }
-      } catch (e) {
-        console.error("Error resolving coords to hospital name:", e);
-      }
-    }
-    
-    resolveCoords();
-    return () => { isMounted = false; };
-  }, [myCoords]);
-
-  // Autocomplete search suggestions
-  useEffect(() => {
-    if (!hospitalSearch || hospitalSearch.trim() === "" || hospitalSearch === resolvedHospitalName) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
-    const delayDebounceFn = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/hospitals?q=${encodeURIComponent(hospitalSearch)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSuggestions(data);
-          setShowSuggestions(data.length > 0);
-        }
-      } catch (err) {
-        console.error("Error fetching suggestions:", err);
-      }
-    }, 300);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [hospitalSearch, resolvedHospitalName]);
-
-  const handleSelectSuggestion = (item: any) => {
-    setResolvedHospitalName(item.nama);
-    setHospitalSearch(item.nama);
-    setShowSuggestions(false);
-    onUpdateSignal(true, [item.latitude, item.longitude]);
-  };
-
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -309,49 +245,6 @@ export default function MyDonorSignalPanel({
             </div>
           </div>
 
-          {/* Hospital Search Box - Full Width */}
-          <div className="relative space-y-1.5">
-            <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-              {language === "en" ? "My Station / Nearest Hospital" : "Pos Siaga / RS Terdekat"}
-            </span>
-            <div className="relative">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-3.5 h-3.5" />
-              <input
-                type="text"
-                value={hospitalSearch}
-                onChange={(e) => setHospitalSearch(e.target.value)}
-                onFocus={() => {
-                  if (suggestions.length > 0) setShowSuggestions(true);
-                }}
-                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                placeholder={
-                  language === "en" ? "Search hospital..." : "Cari rumah sakit..."
-                }
-                className="w-full pl-8 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] focus:outline-none focus:border-primary text-slate-700 dark:text-slate-200 font-medium"
-              />
-              
-              {/* Suggestions Dropdown */}
-              {showSuggestions && suggestions.length > 0 && (
-                <div className="absolute left-0 right-0 mt-1.5 max-h-48 overflow-y-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 divide-y divide-slate-100 dark:divide-slate-800">
-                  {suggestions.map((item) => (
-                    <button
-                      key={item.kode_rs}
-                      type="button"
-                      onClick={() => handleSelectSuggestion(item)}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col gap-0.5"
-                    >
-                      <span className="font-bold text-[10px] text-slate-900 dark:text-white">
-                        {item.nama}
-                      </span>
-                      <span className="text-[8px] text-slate-400 dark:text-slate-500 font-medium truncate">
-                        {item.alamat || item.wilayah}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
 
           {/* Location Action Buttons */}
           <div className="space-y-2">
@@ -367,10 +260,7 @@ export default function MyDonorSignalPanel({
                           const res = await fetch(`/api/hospitals?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`);
                           if (res.ok) {
                             const hospital = await res.json();
-                            if (hospital && hospital.nama) {
-                              setResolvedHospitalName(hospital.nama);
-                              setHospitalSearch(hospital.nama);
-                            }
+                            // Removed hospital name resolution since Pos Siaga is removed
                           }
                         } catch (err) {
                           console.error("Error resolving nearest hospital name for GPS:", err);
