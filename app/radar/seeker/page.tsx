@@ -38,6 +38,30 @@ export default function SeekerDashboard() {
   const [success, setSuccess] = useState(false);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isPanelExpanded, setIsPanelExpanded] = useState(false);
+  const touchStartY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+  
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaY = touchEndY - touchStartY.current;
+    
+    if (deltaY < -40) {
+      // Swipe up
+      setIsPanelExpanded(true);
+    } else if (deltaY > 40) {
+      // Swipe down
+      if (isPanelExpanded) {
+        setIsPanelExpanded(false);
+      } else {
+        setIsSidebarOpen(false);
+      }
+    }
+  };
+
   const [userProvince, setUserProvince] = useState("DIY");
   const [hospitalCoords, setHospitalCoords] = useState<[number, number] | null>(null);
 
@@ -283,14 +307,21 @@ export default function SeekerDashboard() {
 
         {/* ═══ SIDEBAR ═══ */}
         <div
-          className={`absolute bottom-4 left-4 right-4 top-auto h-[55vh] w-[calc(100%-2rem)] md:top-6 md:bottom-6 md:left-6 md:right-auto md:h-auto md:w-[400px] z-20 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 pb-8 md:pb-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden transition-all duration-300 ${
+          className={`absolute bottom-4 left-4 right-4 top-auto w-[calc(100%-2rem)] md:top-6 md:bottom-6 md:left-6 md:right-auto md:w-[400px] z-20 flex flex-col bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-[2rem] shadow-2xl p-6 pb-8 md:pb-6 border border-slate-200/50 dark:border-slate-800/50 overflow-hidden transition-all duration-300 ease-out ${
             isSidebarOpen
               ? "translate-y-0 md:translate-x-0 opacity-100"
               : "translate-y-[120%] md:-translate-x-[120%] opacity-0 pointer-events-none"
-          }`}
+          } ${isPanelExpanded ? "h-[85dvh] md:h-auto" : "h-[55dvh] md:h-auto"}`}
         >
           {/* Mobile Drag Handle Indicator */}
-          <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4 md:hidden shrink-0" />
+          <div 
+            className="w-full py-2 -mt-4 mb-2 flex justify-center items-center md:hidden shrink-0 cursor-grab active:cursor-grabbing touch-pan-y"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onClick={() => setIsPanelExpanded(!isPanelExpanded)}
+          >
+            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full" />
+          </div>
 
           {/* Header */}
           <div className="shrink-0 mb-4">
