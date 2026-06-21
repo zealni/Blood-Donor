@@ -6,8 +6,17 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://blood-donor-six.vercel.app"),
   title: "BloodConnect - Donor Darah Darurat",
   description: "Sistem koordinasi donor darah darurat secara waktu nyata.",
+  openGraph: {
+    title: "BloodConnect - Donor Darah Darurat",
+    description: "Temukan & Bantu Mereka yang Membutuhkan Darah Saat Ini Juga.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  }
 };
 
 export default function RootLayout({
