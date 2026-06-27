@@ -21,18 +21,48 @@ export default function ProfileDashboard() {
 
   useEffect(() => {
     setMounted(true);
-    const storedSession = localStorage.getItem("user_session");
-    if (!storedSession) {
+    const supabase = createClient();
+    if (!supabase) {
       router.push("/login?redirect=/profile");
       return;
     }
-    try {
-      const data: UserProfile = JSON.parse(storedSession);
-      setProfile(data);
-    } catch (e) {
-      console.error(e);
-      router.push("/login?redirect=/profile");
-    }
+
+    void (async () => {
+      const { data: authData } = await supabase.auth.getUser();
+      const user = authData?.user;
+      if (!user) {
+        router.push("/login?redirect=/profile");
+        return;
+      }
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (profileData) {
+        let locString = "yogyakarta";
+        if (profileData.location) {
+          const provKey = Object.keys(provinceShortNames).find(
+            (key) => provinceShortNames[key as keyof typeof provinceShortNames] === profileData.location
+          );
+          if (provKey) locString = provinceShortNames[provKey as keyof typeof provinceShortNames];
+        }
+
+        setProfile({
+          id: user.id,
+          email: user.email || "",
+          fullName: profileData.full_name || user.user_metadata?.full_name || "Pengguna BloodConnect",
+          bloodType: (profileData.blood_type || "O") as any,
+          rhesus: (profileData.rhesus || "+") as any,
+          lastDonation: profileData.last_donation || "",
+          isAvailable: profileData.is_available ?? true,
+          location: locString,
+          isLoggedIn: true,
+        });
+      }
+    })();
   }, [router]);
 
   // Eligibility calculation helper
@@ -100,8 +130,7 @@ export default function ProfileDashboard() {
         }
       }
 
-      // Update session in localStorage
-      localStorage.setItem("user_session", JSON.stringify(updatedProfile));
+      // No localStorage writes needed.
       
       setProfile(updatedProfile);
       setIsEditing(false);
@@ -119,7 +148,7 @@ export default function ProfileDashboard() {
     if (!profile) return;
     const updatedProfile = { ...profile, isAvailable: available };
     setProfile(updatedProfile);
-    localStorage.setItem("user_session", JSON.stringify(updatedProfile));
+    // No localStorage writes needed.
     
     const supabase = createClient();
     if (supabase && profile.id) {
@@ -142,7 +171,7 @@ export default function ProfileDashboard() {
     };
     
     setProfile(updatedProfile);
-    localStorage.setItem("user_session", JSON.stringify(updatedProfile));
+    // No localStorage writes needed.
     
     const supabase = createClient();
     if (supabase && profile.id) {

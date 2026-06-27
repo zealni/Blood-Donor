@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, User, Heart, Mail, Calendar, MapPin, MessageSquare, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/components/LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
 
 interface UserProfile {
   email: string;
@@ -27,11 +28,17 @@ export default function PublicProfilePage() {
   useEffect(() => {
     setMounted(true);
     // Auth Check
-    const storedSession = localStorage.getItem("user_session");
-    if (!storedSession) {
+    const supabase = createClient();
+    if (!supabase) {
       router.push(`/login?redirect=/profile/${params.id}`);
       return;
     }
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (!data?.user) {
+        router.push(`/login?redirect=/profile/${params.id}`);
+      }
+    })();
 
     // Mock Users Data lookup based on ID
     const mockUsers: Record<string, UserProfile> = {

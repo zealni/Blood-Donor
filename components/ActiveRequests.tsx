@@ -121,27 +121,6 @@ export default function ActiveRequests({ onCTA }: ActiveRequestsProps) {
 
   // Load user session location on mount or detect via GPS/IP
   useEffect(() => {
-    const storedSession = typeof window !== "undefined" ? localStorage.getItem("user_session") : null;
-    if (storedSession) {
-      try {
-        const session = JSON.parse(storedSession);
-        const userLoc = session.location?.toLowerCase();
-        if (userLoc) {
-          const matched = PROVINCES.find(prov => 
-            prov.name.toLowerCase().includes(userLoc) || 
-            userLoc.includes(prov.id) ||
-            prov.keywords.some(kw => userLoc.includes(kw))
-          );
-          if (matched) {
-            setSelectedRegion(matched.id);
-            return;
-          }
-        }
-      } catch (e) {
-        console.error("Failed to parse user session location:", e);
-      }
-    }
-
     // Check localStorage cache for previously auto-detected province
     const cachedDetected = typeof window !== "undefined" ? localStorage.getItem("detected_province") : null;
     if (cachedDetected) {

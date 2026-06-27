@@ -120,26 +120,6 @@ export default function SeekerDashboard() {
         setUserProvince(provinceShortNames[cachedDetected] || cachedDetected.toUpperCase());
         return;
       }
-
-      const storedSession = localStorage.getItem("user_session");
-      if (storedSession) {
-        try {
-          const parsed = JSON.parse(storedSession);
-          if (parsed.location) {
-            const loc = parsed.location.toLowerCase();
-            const matchedProv = Object.keys(provinceShortNames).find((key) =>
-              key.includes(loc) || loc.includes(key)
-            );
-            if (matchedProv) {
-              setUserProvince(provinceShortNames[matchedProv]);
-              return;
-            }
-            setUserProvince(parsed.location.toUpperCase());
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
     };
 
     detectProvince();

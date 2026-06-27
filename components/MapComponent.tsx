@@ -141,17 +141,7 @@ const getInitialCenter = (): [number, number] => {
       }
     }
 
-    // 2. Fallback to user_session location hints
-    const storedSession = window.localStorage.getItem("user_session");
-    if (!storedSession) return DEFAULT_CENTER;
-
-    const session = JSON.parse(storedSession);
-    const location = typeof session.location === "string" ? session.location.toLowerCase() : "";
-    const match = locationCoordinateHints.find((item) =>
-      item.keywords.some((keyword) => location.includes(keyword))
-    );
-
-    return match?.center || DEFAULT_CENTER;
+    return DEFAULT_CENTER;
   } catch (err) {
     console.warn("Failed to read stored map location:", err);
     return DEFAULT_CENTER;
@@ -993,16 +983,8 @@ export default function MapComponent({
           };
         });
 
-        const storedSession = typeof window !== "undefined" ? window.localStorage.getItem("user_session") : null;
-        let currentUserId: string | null = null;
-        if (storedSession) {
-          try {
-            const parsed = JSON.parse(storedSession);
-            currentUserId = parsed.id || null;
-          } catch (e) {
-            console.error("Error parsing user session in map:", e);
-          }
-        }
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUserId = authData?.user?.id || null;
 
         const donors = (donorsData || [])
           .filter((d: any) => d.id !== currentUserId)
