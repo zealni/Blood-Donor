@@ -1,4 +1,0 @@
-- main [ref=e2]:
-  - heading "Playwright MCP OK" [level=1] [ref=e3]
-  - paragraph [ref=e4]: Browser control test from Codex.
-  - button "Ready" [ref=e5]
