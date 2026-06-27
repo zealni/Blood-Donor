@@ -9,7 +9,7 @@ export type BloodType = "A" | "B" | "AB" | "O" | "";
 /** Rhesus factor options */
 export type Rhesus = "+" | "-" | "";
 
-/** Stored in localStorage as "user_session" */
+/** Active user session (from Supabase Auth — stored in httpOnly cookies) */
 export interface UserSession {
   id?: string;
   email: string;
@@ -17,6 +17,7 @@ export interface UserSession {
   isLoggedIn: boolean;
   bloodType?: string;
   rhesus?: string;
+  lastDonation?: string;
   location?: string;
   isAvailable?: boolean;
 }

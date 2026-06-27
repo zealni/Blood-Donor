@@ -25,6 +25,7 @@ import {
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "./LanguageProvider";
 import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
 import { getDistance, parseWkbHexPoint } from "@/lib/geo";
 
@@ -150,27 +151,24 @@ export default function Navbar() {
     };
   }, []);
 
-  // Fetch profile blood info if user is logged in
+  // Fetch profile blood info when user session is active
   useEffect(() => {
     if (session?.isLoggedIn) {
-      const stored = localStorage.getItem("user_session");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (parsed.id) {
-            const supabase = createClient();
-            if (supabase) {
-              supabase.from("profiles").select("blood_type, rhesus").eq("id", parsed.id).single()
-                .then((res: any) => {
-                  const data = res.data;
-                  if (data) {
-                    setUserBloodInfo({ type: data.blood_type || "O", rhesus: data.rhesus || "+" });
-                  }
-                });
-            }
+      const supabase = createClient();
+      if (!supabase) return;
+      void (async () => {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("blood_type, rhesus")
+            .eq("id", authData.user.id)
+            .single();
+          if (profileData) {
+            setUserBloodInfo({ type: profileData.blood_type ?? "O", rhesus: profileData.rhesus ?? "+" });
           }
-        } catch (e) { console.error(e); }
-      }
+        }
+      })();
     }
   }, [session?.isLoggedIn]);
 
@@ -301,37 +299,48 @@ export default function Navbar() {
   ];
 
   useEffect(() => {
-    // Session state
-    const storedSession = localStorage.getItem("user_session");
-    if (storedSession) {
-      try {
-        setSession(JSON.parse(storedSession));
-      } catch (e) {
-        console.error("Failed to parse user session", e);
-      }
-    }
+    const supabase = createClient();
 
     // Force light mode
     document.documentElement.classList.remove("dark");
-    localStorage.removeItem("theme");
 
-    // Click outside handler
-    const handleClickOutside = (event: MouseEvent) => {
-      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setIsNotificationOpen(false);
-      }
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
-        setIsProfileOpen(false);
-      }
-      if (pmiRef.current && !pmiRef.current.contains(event.target as Node)) {
-        setIsPmiWidgetOpen(false);
-      }
-    };
+    // Bootstrap session from Supabase Auth (httpOnly cookie)
+    if (supabase) {
+      void (async () => {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          setSession({ email: data.user.email ?? "", fullName: (data.user.user_metadata?.full_name as string) ?? data.user.email ?? "", isLoggedIn: true });
+        }
+      })();
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+      // Listen for login/logout events
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_: AuthChangeEvent, supabaseSession: Session | null) => {
+        if (supabaseSession?.user) {
+          setSession({ email: supabaseSession.user.email || "", fullName: supabaseSession.user.user_metadata?.full_name || supabaseSession.user.email || "", isLoggedIn: true });
+        } else {
+          setSession(null);
+        }
+      });
+
+      // Click outside handler
+      const handleClickOutside = (event: MouseEvent) => {
+        if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+          setIsNotificationOpen(false);
+        }
+        if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+          setIsProfileOpen(false);
+        }
+        if (pmiRef.current && !pmiRef.current.contains(event.target as Node)) {
+          setIsPmiWidgetOpen(false);
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        subscription.unsubscribe();
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
   }, []);
 
 
@@ -344,7 +353,7 @@ export default function Navbar() {
     } catch (e) {
       console.error("Error signing out from Supabase:", e);
     }
-    localStorage.removeItem("user_session");
+    // Session cookie is cleared by supabase.auth.signOut() — no localStorage needed
     setSession(null);
     setIsProfileOpen(false);
     setIsMobileMenuOpen(false);

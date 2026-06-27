@@ -10,8 +10,11 @@ import CalendarPicker from "@/components/CalendarPicker";
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/radar/donor";
-  
+
+  // Security: validate redirect to prevent open redirect attacks
+  const rawRedirect = searchParams.get("redirect") || "/radar/donor";
+  const redirectPath = rawRedirect.startsWith("/") ? rawRedirect : "/radar/donor";
+
   // Fields
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -19,7 +22,7 @@ function RegisterForm() {
   const [bloodType, setBloodType] = useState<"A" | "B" | "AB" | "O" | "">("");
   const [rhesus, setRhesus] = useState<"+" | "-" | "">("");
   const [lastDonation, setLastDonation] = useState("");
-  
+
   // UI states
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -65,86 +68,65 @@ function RegisterForm() {
     try {
       const supabase = createClient();
       if (!supabase) {
-        throw new Error("Supabase client tidak terinisialisasi. Periksa konfigurasi.");
+        throw new Error("Layanan autentikasi tidak tersedia. Periksa konfigurasi.");
       }
 
-      // 1. Generate local user ID
-      const userId = crypto.randomUUID();
+      // 1. Register via Supabase Auth (password is hashed automatically)
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          // Pass extra profile data to be used by the DB trigger (handle_new_user)
+          data: {
+            full_name: fullName,
+          },
+          // After email confirmation, redirect to radar/donor
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${redirectPath}`,
+        },
+      });
 
-      // 2. Check if email already exists (Custom Database Auth)
-      const { data: existingUser } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (existingUser) {
-        throw new Error("Email sudah terdaftar. Silakan gunakan email lain atau masuk.");
-      }
-
-      // 3. Insert profile details into public.profiles
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: userId,
-          email: email,
-          password: password, // Note: In production, passwords MUST be hashed!
-          full_name: fullName,
-          blood_type: bloodType,
-          rhesus: rhesus,
-          last_donation: lastDonation || null,
-          is_available: true,
-          location: "POINT(110.380 -7.775)" // Default center Yogyakarta
+      if (signUpError) {
+        console.error("Supabase signUp error:", signUpError.message);
+        if (signUpError.message.includes("already registered") || signUpError.message.includes("User already exists")) {
+          throw new Error("Email sudah terdaftar. Silakan gunakan email lain atau masuk.");
         }
-      ]);
+        throw new Error("Gagal mendaftar. Silakan coba lagi.");
+      }
+
+      if (!authData.user) {
+        throw new Error("Gagal membuat akun. Silakan coba lagi.");
+      }
+
+      // 2. Upsert profile details (blood type, rhesus, etc.)
+      // The trigger already created a basic profile row; we update it with medical info.
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert([
+          {
+            id: authData.user.id,
+            email: email,
+            full_name: fullName,
+            blood_type: bloodType,
+            rhesus: rhesus,
+            last_donation: lastDonation || null,
+            is_available: true,
+            location: "POINT(110.380 -7.775)", // Default center Yogyakarta
+          },
+        ]);
 
       if (profileError) {
-        throw new Error("Gagal menyimpan profil: " + profileError.message);
+        // Log detailed error server-side only
+        console.error("Profile upsert error:", profileError.message);
+        throw new Error("Gagal menyimpan profil. Silakan coba lagi.");
       }
 
-      const newUser = {
-        id: userId,
-        email,
-        fullName,
-        bloodType,
-        rhesus,
-        lastDonation,
-        isAvailable: true,
-        isLoggedIn: true,
-      };
+      // 3. Session is now handled by Supabase Auth (httpOnly cookies)
+      // No localStorage writes needed.
 
-      // Sync registered_users in local storage as a fallback/compatibility measure
-      const storedUsers = localStorage.getItem("registered_users");
-      let usersList = [];
-      if (storedUsers) {
-        try {
-          usersList = JSON.parse(storedUsers);
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      const userIndex = usersList.findIndex((u: any) => u.email.toLowerCase() === email.toLowerCase());
-      if (userIndex === -1) {
-        usersList.push(newUser);
-      } else {
-        usersList[userIndex] = newUser;
-      }
-      localStorage.setItem("registered_users", JSON.stringify(usersList));
-
-      // Save active session locally
-      localStorage.setItem("user_session", JSON.stringify(newUser));
-
-      // Redirect to target path immediately
       router.push(redirectPath);
       router.refresh();
     } catch (err: any) {
-      console.error("Registration error:", err);
-      let msg = err.message || "Terjadi kesalahan saat mendaftar.";
-      if (msg.includes("already registered") || msg.includes("User already exists")) {
-        msg = "Email sudah terdaftar. Silakan gunakan email lain atau masuk.";
-      } else if (msg.includes("password")) {
-        msg = "Kata sandi tidak memenuhi kriteria keamanan.";
-      }
-      setError(msg);
+      setError(err.message || "Terjadi kesalahan saat mendaftar.");
     } finally {
       setLoading(false);
     }

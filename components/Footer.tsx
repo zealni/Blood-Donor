@@ -1,9 +1,11 @@
-"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Heart, Send, Github, Twitter, Instagram, PhoneCall, Mail, MapPin } from "lucide-react";
 import { useLanguage } from "./LanguageProvider";
+import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 export default function Footer() {
   const [email, setEmail] = useState("");
@@ -12,17 +14,19 @@ export default function Footer() {
   const { language } = useLanguage();
 
   useEffect(() => {
-    const storedSession = localStorage.getItem("user_session");
-    if (storedSession) {
-      try {
-        const parsed = JSON.parse(storedSession);
-        if (parsed.isLoggedIn) {
-          setIsLoggedIn(true);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
+    const supabase = createClient();
+    if (!supabase) return;
+
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      setIsLoggedIn(!!data?.user);
+    })();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_: AuthChangeEvent, session: Session | null) => {
+      setIsLoggedIn(!!session?.user);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleSubscribe = (e: React.FormEvent) => {

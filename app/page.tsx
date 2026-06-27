@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import Navbar from "@/components/Navbar";
 import LiveSignalMap from "@/components/LiveSignalMap";
 import ActiveRequests from "@/components/ActiveRequests";
@@ -29,14 +30,27 @@ export default function Home() {
   const [stats, setStats] = useState({ requests: 0, donors: 0 });
 
   useEffect(() => {
-    const storedSession = localStorage.getItem("user_session");
-    if (storedSession) {
-      try {
-        setSession(JSON.parse(storedSession));
-      } catch (e) {
-        console.error("Failed to parse user session", e);
+    const supabase = createClient();
+    if (!supabase) return;
+
+    // Bootstrap session from Supabase Auth (httpOnly cookie)
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        setSession({ email: data.user.email ?? "", fullName: (data.user.user_metadata?.full_name as string) ?? "", isLoggedIn: true });
       }
-    }
+    })();
+
+    // Listen for auth state changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_: AuthChangeEvent, supabaseSession: Session | null) => {
+      if (supabaseSession?.user) {
+        setSession({ email: supabaseSession.user.email ?? "", fullName: (supabaseSession.user.user_metadata?.full_name as string) ?? "", isLoggedIn: true });
+      } else {
+        setSession(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Fetch real-time stats from Supabase

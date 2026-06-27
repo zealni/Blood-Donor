@@ -5,6 +5,7 @@ import { Send, MapPin, Activity, AlertCircle, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import Navbar from "@/components/Navbar";
 import { useLanguage } from "@/components/LanguageProvider";
 import { provinceShortNames } from "@/lib/geo";
@@ -152,38 +153,57 @@ export default function SeekerDashboard() {
 
   useEffect(() => {
     setMounted(true);
-    const storedSession = localStorage.getItem("user_session");
-    if (!storedSession) {
+    const supabase = createClient();
+    if (!supabase) {
       router.push("/login?redirect=/radar/seeker");
       return;
     }
-    try {
-      const parsedSession = JSON.parse(storedSession);
-      setSession(parsedSession);
-      
-      // Fetch active request
-      const fetchActive = async () => {
-        const supabase = createClient();
-        if (supabase) {
-          const { data } = await supabase
-            .from("blood_requests")
-            .select("*")
-            .eq("seeker_id", parsedSession.id)
-            .eq("status", "open")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single();
-          
-          if (data) {
-            setActiveRequest(data);
-          }
-        }
+
+    // Check current session from httpOnly cookie
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
+      if (!user) {
+        router.push("/login?redirect=/radar/seeker");
+        return;
+      }
+
+      const userSession = {
+        id: user.id,
+        email: user.email ?? "",
+        fullName: (user.user_metadata?.full_name as string) ?? "Pengguna BloodConnect",
+        bloodType: ((user.user_metadata?.blood_type as string) ?? "O") as any,
+        rhesus: ((user.user_metadata?.rhesus as string) ?? "+") as any,
+        lastDonation: (user.user_metadata?.last_donation as string) ?? "",
+        isAvailable: true,
+        isLoggedIn: true,
       };
-      fetchActive();
-    } catch (e) {
-      console.error(e);
-      router.push("/login?redirect=/radar/seeker");
-    }
+      setSession(userSession);
+
+      // Fetch active request for this user
+      const { data: reqData } = await supabase
+        .from("blood_requests")
+        .select("*")
+        .eq("seeker_id", user.id)
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (reqData) {
+        setActiveRequest(reqData);
+      }
+    })();
+
+    // Reactively handle auth changes (e.g. logout from another tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_: AuthChangeEvent, supabaseSession: Session | null) => {
+      if (!supabaseSession?.user) {
+        setSession(null);
+        router.push("/login?redirect=/radar/seeker");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
   const handleMapClick = async (lat: number, lng: number) => {

@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import Navbar from "@/components/Navbar";
 import { useLanguage } from "@/components/LanguageProvider";
 import { createClient } from "@/lib/supabase/client";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import { provinceShortNames, parseWkbHexPoint } from "@/lib/geo";
 import type { UserSession, RequestSignal } from "@/lib/types";
 
@@ -218,15 +219,6 @@ export default function DonorDashboard() {
         setMyCoords(coords);
         setIsSelectingOnMap(false);
       }
-      const stored = localStorage.getItem("user_session");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          parsed.isAvailable = avail;
-          localStorage.setItem("user_session", JSON.stringify(parsed));
-        } catch (e) { console.error(e); }
-      }
-      window.dispatchEvent(new Event("local-storage-update"));
       return;
     }
 
@@ -261,15 +253,6 @@ export default function DonorDashboard() {
       if (coords) {
         setMyCoords(coords);
         setIsSelectingOnMap(false);
-      }
-
-      const stored = localStorage.getItem("user_session");
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          parsed.isAvailable = avail;
-          localStorage.setItem("user_session", JSON.stringify(parsed));
-        } catch (e) { console.error(e); }
       }
       window.dispatchEvent(new Event("local-storage-update"));
     } catch (err) {
@@ -313,23 +296,46 @@ export default function DonorDashboard() {
     };
   }, []);
 
-  // ── Session init ──
+  // ── Session init (Supabase Auth) ──
   useEffect(() => {
     setMounted(true);
-    const storedSession = localStorage.getItem("user_session");
-    if (!storedSession) {
+    const supabase = createClient();
+    if (!supabase) {
       router.push("/login?redirect=/radar/donor");
       return;
     }
-    try {
-      const parsed = JSON.parse(storedSession);
-      setSession(parsed);
-      setBroadcastBloodType(parsed.bloodType || "O");
-      setBroadcastRhesus(parsed.rhesus || "+");
-    } catch (e) {
-      console.error(e);
-      router.push("/login?redirect=/radar/donor");
-    }
+
+    // Check current session from httpOnly cookie
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data?.user;
+      if (!user) {
+        router.push("/login?redirect=/radar/donor");
+        return;
+      }
+      setSession({
+        id: user.id,
+        email: user.email ?? "",
+        fullName: (user.user_metadata?.full_name as string) ?? "Pengguna BloodConnect",
+        bloodType: ((user.user_metadata?.blood_type as string) ?? "O") as any,
+        rhesus: ((user.user_metadata?.rhesus as string) ?? "+") as any,
+        lastDonation: (user.user_metadata?.last_donation as string) ?? "",
+        isAvailable: true,
+        isLoggedIn: true,
+      });
+      setBroadcastBloodType((user.user_metadata?.blood_type as string) ?? "O");
+      setBroadcastRhesus((user.user_metadata?.rhesus as string) ?? "+");
+    })();
+
+    // Reactively handle auth changes (e.g. logout from another tab)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_: AuthChangeEvent, supabaseSession: Session | null) => {
+      if (!supabaseSession?.user) {
+        setSession(null);
+        router.push("/login?redirect=/radar/donor");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [router]);
 
   // ── Handshake handlers ──

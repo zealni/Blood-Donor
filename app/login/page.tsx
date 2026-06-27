@@ -9,7 +9,10 @@ import { createClient } from "@/lib/supabase/client";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get("redirect") || "/radar/donor";
+
+  // Security: validate redirect to prevent open redirect attacks
+  const rawRedirect = searchParams.get("redirect") || "/radar/donor";
+  const redirectPath = rawRedirect.startsWith("/") ? rawRedirect : "/radar/donor";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +24,7 @@ function LoginForm() {
     e.preventDefault();
     setError("");
 
-    // Simple Validations
+    // Client-side validations
     if (!email) {
       setError("Email tidak boleh kosong.");
       return;
@@ -44,81 +47,42 @@ function LoginForm() {
     try {
       const supabase = createClient();
       if (!supabase) {
-        throw new Error("Supabase client tidak terinisialisasi. Periksa konfigurasi.");
+        throw new Error("Layanan autentikasi tidak tersedia. Periksa konfigurasi.");
       }
 
-      // 1. Fetch profile from Supabase Profiles Table directly (Custom Auth)
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (profileError && profileError.code !== "PGRST116") {
-        console.error("Error fetching profile from Supabase:", profileError);
-        throw new Error("Gagal terhubung ke database. Silakan coba lagi.");
-      }
-
-      if (!profile) {
-        throw new Error("Akun tidak ditemukan. Silakan periksa kembali email Anda.");
-      }
-
-      // 2. Verify Password
-      // Note: In production, use bcrypt or similar to compare hashed passwords!
-      if (profile.password !== password) {
-        throw new Error("Email atau kata sandi salah. Silakan periksa kembali.");
-      }
-
-      const userId = profile.id;
-      let fullName = profile.full_name || "Pengguna BloodConnect";
-      let bloodType = (profile.blood_type || "O") as "A" | "B" | "AB" | "O" | "";
-      let rhesus = (profile.rhesus || "+") as "+" | "-" | "";
-      let lastDonation = profile.last_donation || "";
-      let isAvailable = profile.is_available !== false;
-
-      // 3. Save user session in Local Storage
-      const activeSession = {
-        id: userId,
+      // Use Supabase Auth — passwords are hashed by Supabase (bcrypt internally)
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email,
-        fullName,
-        bloodType,
-        rhesus,
-        lastDonation,
-        isAvailable,
-        isLoggedIn: true,
-      };
-      localStorage.setItem("user_session", JSON.stringify(activeSession));
+        password,
+      });
 
-      // Sync registered_users in local storage as a fallback/compatibility measure
-      const storedUsers = localStorage.getItem("registered_users");
-      let usersList = [];
-      if (storedUsers) {
-        try {
-          usersList = JSON.parse(storedUsers);
-        } catch (e) {
-          console.error(e);
+      if (authError) {
+        // Log technical detail server-side only, show generic message to user
+        console.error("Supabase auth error:", authError.message);
+
+        if (
+          authError.message.includes("Invalid login credentials") ||
+          authError.message.includes("invalid_credentials")
+        ) {
+          throw new Error("Email atau kata sandi salah. Silakan periksa kembali.");
+        } else if (authError.message.includes("Email not confirmed")) {
+          throw new Error(
+            "Email Anda belum diverifikasi. Silakan cek kotak masuk email Anda."
+          );
+        } else if (authError.message.includes("too many requests")) {
+          throw new Error(
+            "Terlalu banyak percobaan login. Silakan tunggu beberapa menit."
+          );
+        } else {
+          throw new Error("Terjadi kesalahan saat masuk. Silakan coba lagi.");
         }
       }
-      const userIndex = usersList.findIndex((u: any) => u.email.toLowerCase() === email.toLowerCase());
-      if (userIndex === -1) {
-        usersList.push(activeSession);
-      } else {
-        usersList[userIndex] = activeSession;
-      }
-      localStorage.setItem("registered_users", JSON.stringify(usersList));
 
-      // 4. Redirect to target path
+      // Session is now stored securely in httpOnly cookies by Supabase Auth
       router.push(redirectPath);
       router.refresh();
     } catch (err: any) {
-      console.error("Login error:", err);
-      let msg = err.message || "Terjadi kesalahan saat masuk.";
-      if (msg.includes("Invalid login credentials") || msg.includes("Invalid credentials")) {
-        msg = "Email atau kata sandi salah. Silakan periksa kembali.";
-      } else if (msg.includes("Email not confirmed")) {
-        msg = "Email Anda belum diverifikasi. Silakan periksa email Anda.";
-      }
-      setError(msg);
+      setError(err.message || "Terjadi kesalahan saat masuk.");
     } finally {
       setLoading(false);
     }
