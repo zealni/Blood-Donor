@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "./LanguageProvider";
+import { useBloodRequests } from '@/hooks/useBloodRequests';
 import { createClient } from "@/lib/supabase/client";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import dynamic from "next/dynamic";
@@ -83,7 +84,7 @@ export default function Navbar() {
     guestRhesus: "+"
   });
 
-  const [realRequests, setRealRequests] = useState<any[]>([]);
+  const { requests: realRequests } = useBloodRequests();
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [userBloodInfo, setUserBloodInfo] = useState({ type: "O", rhesus: "+" });
   const [readNotificationIds, setReadNotificationIds] = useState<string[]>([]);
@@ -118,37 +119,6 @@ export default function Navbar() {
         (err) => console.log("GPS permission not granted for notifications center:", err)
       );
     }
-  }, []);
-
-  // Fetch open requests from Supabase
-  useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return;
-
-    async function fetchRequests() {
-      try {
-        const { data, error } = await supabase
-          .from("blood_requests")
-          .select("id, hospital_name, blood_type, rhesus, bags_needed, urgency, created_at, status, hospital_coord")
-          .eq("status", "open");
-
-        if (data && !error) {
-          setRealRequests(data);
-        }
-      } catch (e) { console.error(e); }
-    }
-
-    fetchRequests();
-
-    // Realtime Postgres listener for new emergency signals
-    const channel = supabase
-      .channel("navbar-notifications-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "blood_requests" }, () => fetchRequests())
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
   // Fetch profile blood info when user session is active
