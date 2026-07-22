@@ -42,3 +42,7 @@ next-env.d.ts
 *.sw?
 .DS_Store
 Thumbs.db
+
+# Scratch and internal scripts (kept local)
+/scratch/
+setup.sh
